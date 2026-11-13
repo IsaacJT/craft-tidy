@@ -35,11 +35,12 @@ execute: |
       build-packages:
         - curl
         - zlib1g-dev
-        - on arm64:
-            - libfoo-arm
-        - else:
-            - libfoo
-      plugs: [audio-playback, home, network]
+        - on arm64: [libfoo-arm]
+        - else: [libfoo]
+      plugs:
+        - audio-playback
+        - home
+        - network
   EOF
   diff -u expected.yaml "$WORK/project/snap/snapcraft.yaml"
 
@@ -58,6 +59,6 @@ execute: |
   craft-tidy --fix "$WORK/project" > out.txt
   cat out.txt
   test "$(wc -l < out.txt)" -eq 2
-  MATCH ":17:81: .*\(cannot be fixed: lines of literal \(\|\) block scalars cannot be wrapped without changing them\)" < out.txt
-  MATCH ":18:81: .*\(cannot be fixed: it has no space at which it can be broken safely, such as in a long URL or word\)" < out.txt
+  MATCH ":18:81: .*\(cannot be fixed: lines of literal \(\|\) block scalars cannot be wrapped without changing them\)" < out.txt
+  MATCH ":19:81: .*\(cannot be fixed: it has no space at which it can be broken safely, such as in a long URL or word\)" < out.txt
   craft-tidy "$WORK/project" | NOMATCH "cannot be fixed"

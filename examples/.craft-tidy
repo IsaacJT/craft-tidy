@@ -36,6 +36,12 @@ fix: false
 # integers, floats or strings. Run `craft-tidy --explain CHECK` to see the
 # options supported by a check; unknown options are rejected.
 check-options:
+  style-collapsed-sequences:
+    # Sequences of strings with at most this many items must be written on
+    # one line (`plugs: [home, network]`), longer ones one item per line.
+    # Short sequences whose one-line form would exceed style-line-length's
+    # max-length stay one item per line. Default: 2.
+    max-collapsed-items: 2
   style-line-length:
     # Maximum number of characters per line. Default: 80.
     max-length: 80

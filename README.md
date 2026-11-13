@@ -200,6 +200,7 @@ non-hidden parent directory) instead.
 | Check                   | Applies to | Fixable | Description                                               |
 | ----------------------- | ---------- | ------- | --------------------------------------------------------- |
 | `project-file-location` | Snapcraft  | No      | The project file must be in a `snap/` directory (`snap/` or `build-aux/snap/`) |
+| `style-collapsed-sequences` | All tools | Yes | Short sequences must be on one line, longer ones one item per line |
 | `style-line-length`     | All tools  | Partly  | Lines must not be longer than `max-length` characters     |
 | `style-sorted-lists`    | All tools  | Yes     | Entries of unordered lists must be sorted alphabetically  |
 
@@ -232,6 +233,39 @@ not moved by `--fix`; move it yourself, for example with
 `git mv snapcraft.yaml snap/snapcraft.yaml`. The other craft tools only read
 their project file from the project root, so the check does not apply to
 them.
+
+### style-collapsed-sequences
+
+Reports sequences of strings that are written in the wrong style for their
+size: sequences with at most `max-collapsed-items` items (default: 2) must
+be written on one line, and longer ones one item per line:
+
+```yaml
+plugs: [home, network]
+build-packages:
+  - cmake
+  - curl
+  - zlib1g-dev
+```
+
+A short sequence stays one item per line, and is not reported, if writing
+it on one line would make the line longer than `style-line-length`'s
+`max-length`, so the two checks never ask for opposite changes.
+
+Only sequences that are the value of a key and contain nothing but
+single-line strings are checked. Sequences with comments (including on the
+key's line), anchors, tags or aliases, nested lists or mappings (such as
+advanced grammar entries), multi-line strings, and empty sequences are
+left alone, as are strings that cannot be put in `[...]` without changing
+them (such as `a, b`).
+
+With `--fix`, sequences are rewritten in the right style. Sequences written
+one item per line use the same indentation as the other such sequences in
+the file (two spaces past the key if there are none).
+
+| Option                | Type    | Default | Description |
+| --------------------- | ------- | ------- | ----------- |
+| `max-collapsed-items` | integer | `2`     | Largest number of items written on one line; `0` puts every sequence one item per line |
 
 ### style-line-length
 

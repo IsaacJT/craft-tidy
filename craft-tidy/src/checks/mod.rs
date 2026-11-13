@@ -2,6 +2,7 @@
 
 //! The lint check framework and registry.
 
+mod collapsed_sequences;
 mod line_length;
 mod project_file_location;
 mod sorted_lists;
@@ -162,6 +163,7 @@ pub trait Check {
 /// All available checks, sorted by name.
 pub fn registry() -> Vec<Box<dyn Check>> {
     let mut checks: Vec<Box<dyn Check>> = vec![
+        Box::new(collapsed_sequences::CollapsedSequences),
         Box::new(line_length::LineLength),
         Box::new(project_file_location::ProjectFileLocation),
         Box::new(sorted_lists::SortedLists),

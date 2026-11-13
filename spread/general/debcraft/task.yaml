@@ -85,3 +85,36 @@ execute: |
   test "$(wc -l < out.txt)" -eq 2
   head -n1 out.txt | MATCH "^\./debcraft.yaml:11:"
   tail -n1 out.txt | MATCH "^\./snap/snapcraft.yaml:2:"
+
+  # Short sequences go on one line, longer ones one item per line.
+  mkdir -p $WORK/collapse
+  cd $WORK/collapse
+  cat > debcraft.yaml <<'EOF'
+  name: collapse
+  parts:
+    part:
+      plugin: nil
+      after:
+        - other
+      stage-packages: [curl, git, make]
+  EOF
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 2
+  MATCH "debcraft.yaml:6:7: warning: sequence has 1 item\(s\), at most 2; write it on one line as \[other\] \[style-collapsed-sequences\]" < out.txt
+  MATCH "debcraft.yaml:7:21: warning: sequence has 3 items, more than 2; write one item per line \[style-collapsed-sequences\]" < out.txt
+  craft-tidy -o style-collapsed-sequences.max-collapsed-items=3 | NOMATCH "\.yaml:7:"
+  craft-tidy --fix > out.txt 2> err.txt
+  test ! -s out.txt
+  cat > expected.yaml <<'EOF'
+  name: collapse
+  parts:
+    part:
+      plugin: nil
+      after: [other]
+      stage-packages:
+        - curl
+        - git
+        - make
+  EOF
+  diff -u expected.yaml debcraft.yaml

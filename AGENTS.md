@@ -12,7 +12,8 @@ Rust and distributed as a strictly confined snap. It is licensed
 
 The project is in early development: the CLI, the configuration system, the
 check framework and `--fix` exist. Implemented checks:
-`project-file-location`, `style-line-length`, `style-sorted-lists`.
+`project-file-location`, `style-collapsed-sequences`, `style-line-length`,
+`style-sorted-lists`.
 
 ## Repository layout
 
@@ -45,6 +46,16 @@ check framework and `--fix` exist. Implemented checks:
     `snapcraft.yaml`/`.snapcraft.yaml` whose (absolute) parent directory is
     not named `snap` (so `build-aux/snap/` is fine); Snapcraft-only
     (`crafts()`), path-only, no fix
+  - `src/checks/collapsed_sequences.rs` - `style-collapsed-sequences`
+    (option `max-collapsed-items`, default 2): sequences of single-line
+    strings that are a key's value must be flow (`[a, b]`) up to the limit
+    and block above it; short ones stay block if the flow form would exceed
+    `style-line-length`'s `max-length` (read from that check's options).
+    Skips comments (key line through sequence end), anchors/tags/aliases,
+    nested collections. Block `-` position comes from `block_start` (the
+    parser's span of an indentless sequence starts at its first item);
+    expansion copies the file's block indentation. Run and fix share
+    `changes()`, which only keeps edits that verify
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments; lines it skips get an `unfixable` reason

@@ -16,8 +16,7 @@ confinement: strict
 apps:
   craft-tidy:
     command: bin/craft-tidy
-    plugs:
-      - home
+    plugs: [home]
 
 parts:
   craft-tidy:
