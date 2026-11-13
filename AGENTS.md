@@ -108,17 +108,24 @@ snapcraft pack
 ```
 
 Before finishing a change, ensure `cargo fmt`, `cargo clippy` (no warnings)
-and `cargo test` all pass.
+and `cargo test` all pass, and that `snapcraft pack` succeeds. Snap builds
+take a few minutes; run them in the background while doing other work.
 
 ## Committing
 
 - Commit as you go, at logical checkpoints: each commit is one
   self-contained step (e.g. a new setting, a new check, a bug fix, a docs
   update), not a dump of a whole session's work.
-- Every commit must build and pass `cargo fmt --check`, `cargo clippy
-  --all-targets -- -D warnings` and `cargo test`, and include the tests and
-  doc updates (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`,
-  `examples/.craft-tidy`) for the code it adds.
+- Every commit must pass `cargo fmt --check`, `cargo clippy --all-targets --
+  -D warnings` and `cargo test`, **and** build the snap with `snapcraft pack`
+  from the repository root. This applies to docs-only commits too. Include
+  the tests and doc updates (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`,
+  `examples/.craft-tidy`) for the code a commit adds.
+- To check a series of commits, run the checks on each one, e.g. with
+  `git rebase --exec` as shown in `CONTRIBUTING.md`, or in a separate
+  worktree so the main checkout is left alone. If a commit fails, fix that
+  commit (unpushed history may be rewritten) rather than adding a fix-up on
+  top.
 - Commit messages: summary line of 50 characters or fewer, blank line, then
   what changed and why. Always sign off (`git commit -s`).
 - Stage files explicitly and check `git status` before committing; never

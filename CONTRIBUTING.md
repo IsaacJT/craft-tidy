@@ -30,6 +30,20 @@ snapcraft pack
 sudo snap install --dangerous ./craft-tidy_*.snap
 ```
 
+### Checking every commit
+
+Every commit must pass the cargo checks above and build the snap. To verify
+all commits on your branch, run from the repository root (replace `main`
+with the branch you are based on):
+
+```sh
+git rebase main --exec \
+  '(cd craft-tidy && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test) && snapcraft pack'
+```
+
+The rebase stops at the first commit that fails, so you can fix it in place
+with `git commit --amend` and continue with `git rebase --continue`.
+
 ## Code structure
 
 The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
@@ -129,10 +143,11 @@ Settings must be available both in `.craft-tidy` and on the command line:
 5. Update the documentation (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`)
    whenever behaviour, usage, layout or workflow changes.
 6. Split work into commits at logical checkpoints, one self-contained step
-   per commit. Every commit must build, pass `cargo fmt --check`, `cargo
-   clippy` and `cargo test`, and include the tests and documentation for
-   the code it adds, so that any commit can be checked out, bisected or
-   reverted on its own.
+   per commit. Every commit must pass `cargo fmt --check`, `cargo clippy`
+   and `cargo test`, build the snap with `snapcraft pack` (see
+   [Checking every commit](#checking-every-commit)), and include the tests
+   and documentation for the code it adds, so that any commit can be
+   checked out, bisected or reverted on its own.
 7. Write clear commit messages: a short summary line (50 characters or
    fewer), a blank line, then a description of what changed and why.
 8. Sign off your commits (`git commit -s`) to certify the
