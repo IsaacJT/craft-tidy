@@ -51,6 +51,42 @@ pub fn project(config: Option<&str>) -> TempDir {
     dir
 }
 
+/// Whether PyYAML, the YAML parser used by Snapcraft, loads `a` and `b` as
+/// the same data. Returns `None` if Python 3 with PyYAML is not available,
+/// so tests can use it as an additional check where possible.
+pub fn pyyaml_equal(a: &str, b: &str) -> Option<bool> {
+    let dir = tempfile::tempdir().ok()?;
+    let (path_a, path_b) = (dir.path().join("a.yaml"), dir.path().join("b.yaml"));
+    fs::write(&path_a, a).ok()?;
+    fs::write(&path_b, b).ok()?;
+    let script = "import sys, yaml\n\
+                  load = lambda p: yaml.safe_load(open(p, encoding='utf-8'))\n\
+                  sys.exit(0 if load(sys.argv[1]) == load(sys.argv[2]) else 1)\n";
+    let status = std::process::Command::new("python3")
+        .args(["-c", "import yaml"])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .ok()?;
+    if !status.success() {
+        return None;
+    }
+    let output = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(script)
+        .arg(&path_a)
+        .arg(&path_b)
+        .output()
+        .ok()?;
+    match output.status.code() {
+        Some(0) => Some(true),
+        Some(1) => Some(false),
+        _ => panic!(
+            "PyYAML failed to load the documents:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    }
+}
+
 /// Parses command line arguments (without the program name).
 pub fn try_cli(args: &[&str]) -> Result<Cli, clap::Error> {
     Cli::try_parse_from(std::iter::once("craft-tidy").chain(args.iter().copied()))

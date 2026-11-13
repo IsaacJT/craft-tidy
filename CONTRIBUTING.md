@@ -74,11 +74,12 @@ module through the crate's public API:
 | `tests/project.rs` | `project`: locating, loading and parsing `snapcraft.yaml`       |
 | `tests/yaml.rs`    | `yaml`: tree structure, spans, values, lines, syntax errors     |
 | `tests/fix.rs`     | `fix`: applying, verifying and skipping edits                   |
+| `tests/check_*.rs` | One file per check, e.g. `check_line_length.rs`: findings, options and fixes |
 | `tests/checks.rs`  | `checks`: selection, running, `warnings-as-errors`, options     |
 | `tests/app.rs`     | `app`: settings layering, output and every action               |
 | `tests/example.rs` | `examples/.craft-tidy` is valid, complete and up to date        |
 | `tests/binary.rs`  | End-to-end runs of the compiled binary and its exit codes       |
-| `tests/common/`    | Shared helpers, including `FakeCheck`                           |
+| `tests/common/`    | Shared helpers, including `FakeCheck` and `pyyaml_equal`        |
 
 Guidelines:
 
@@ -87,6 +88,11 @@ Guidelines:
 - Use `common::FakeCheck` with `app::run_with_checks` or `checks::run` to
   test the framework independently of the real checks.
 - Use `tempfile::tempdir()` for anything touching the filesystem.
+- Tests of fixes should check that fixing is idempotent and, with
+  `common::pyyaml_equal`, that PyYAML (the parser Snapcraft uses) loads the
+  same data before and after. That helper returns `None` when Python 3 with
+  PyYAML is not installed, so install `python3-yaml` to get the full
+  coverage locally.
 - `examples/.craft-tidy` must set every configuration key, and only set
   options for checks that exist; `tests/example.rs` enforces this, so update
   the example whenever you add a setting or a check option.

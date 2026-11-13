@@ -2,6 +2,8 @@
 
 //! The lint check framework and registry.
 
+mod line_length;
+
 use std::fmt;
 
 use crate::config::{CheckOptions, OptionValue, Settings};
@@ -139,7 +141,7 @@ pub trait Check {
 
 /// All available checks, sorted by name.
 pub fn registry() -> Vec<Box<dyn Check>> {
-    let mut checks: Vec<Box<dyn Check>> = Vec::new();
+    let mut checks: Vec<Box<dyn Check>> = vec![Box::new(line_length::LineLength)];
     checks.sort_by_key(|check| check.name());
     checks
 }

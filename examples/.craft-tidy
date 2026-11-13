@@ -25,9 +25,8 @@ fix: false
 
 # Options for individual checks, keyed by check name. Values may be booleans,
 # integers, floats or strings. Run `craft-tidy --explain CHECK` to see the
-# options supported by a check. For example:
-#
-# check-options:
-#   check-name:
-#     option-name: 42
-check-options: {}
+# options supported by a check; unknown options are rejected.
+check-options:
+  style-line-length:
+    # Maximum number of characters per line. Default: 80.
+    max-length: 80

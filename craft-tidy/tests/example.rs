@@ -29,7 +29,12 @@ fn example_is_a_valid_configuration() {
         "metadata-*,parts-*"
     );
     assert_eq!(settings.fix, Some(false));
-    assert!(settings.check_options.is_empty());
+    assert_eq!(
+        settings
+            .check_options
+            .get("style-line-length", "max-length"),
+        Some(&craft_tidy::config::OptionValue::Integer(80))
+    );
 
     assert!(settings.checks.matches("parts-plugin"));
     assert!(!settings.checks.matches("experimental-thing"));

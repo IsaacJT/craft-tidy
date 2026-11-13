@@ -8,8 +8,8 @@ caught before running a (potentially lengthy) snap build.
 craft-tidy is written in Rust and is itself distributed as a snap.
 
 > **Status:** early development. The command line interface, configuration
-> system and check framework are in place, but no lint checks have been
-> implemented yet.
+> system, check framework and automatic fixes are in place, and the first
+> checks are available (see [Checks](#checks)).
 
 ## Installation
 
@@ -155,6 +155,41 @@ interface does not give access
 to hidden files directly in your home directory, so a `~/.craft-tidy` file
 is ignored by the snap; place `.craft-tidy` in the project directory (or a
 non-hidden parent directory) instead.
+
+## Checks
+
+| Check               | Fixable | Description                                            |
+| ------------------- | ------- | ------------------------------------------------------ |
+| `style-line-length` | Partly  | Lines must not be longer than `max-length` characters  |
+
+Run `craft-tidy --list-checks --checks='*'` to list all checks and
+`craft-tidy --explain CHECK` for details.
+
+### style-line-length
+
+Reports every line longer than `max-length` characters (default: 80),
+counting characters rather than bytes.
+
+With `--fix`, long lines are wrapped where this provably does not change
+the data:
+
+- Plain and quoted strings continue on further indented lines, which YAML
+  joins back with single spaces. Breaks are only made at single spaces, and
+  never where a continuation line could look like YAML syntax (for example
+  before `- ` or `&`). A trailing comment stays at the end of the last line.
+- Lines of folded (`>`) block scalars are broken at spaces. More-indented
+  lines are left alone, since YAML does not fold them.
+- Flow sequences such as `plugs: [a, b, c]` become block sequences, one item
+  per line; a trailing comment moves to the key's line.
+- Comments on their own line that look like prose (`# text`) are re-wrapped.
+
+Literal (`|`) block scalars such as `override-build` scripts, long words
+such as URLs, mapping keys and anything inside flow mappings cannot be
+wrapped safely and are only reported.
+
+| Option       | Type    | Default | Description                         |
+| ------------ | ------- | ------- | ----------------------------------- |
+| `max-length` | integer | `80`    | Maximum number of characters per line |
 
 ## Repository layout
 

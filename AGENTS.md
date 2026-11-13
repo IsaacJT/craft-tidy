@@ -8,9 +8,8 @@ craft-tidy is a linter for Snapcraft projects (`snapcraft.yaml`), written in
 Rust and distributed as a strictly confined snap. It is licensed
 `GPL-3.0-only`.
 
-The project is in early development: the CLI, the configuration system and
-the check framework exist, but the check registry is empty (no lint checks
-are implemented yet).
+The project is in early development: the CLI, the configuration system, the
+check framework and `--fix` exist. Implemented checks: `style-line-length`.
 
 ## Repository layout
 
@@ -35,6 +34,9 @@ are implemented yet).
   - `src/checks/mod.rs` - `Check` trait, `Diagnostic`, `registry()`,
     `enabled()`, `validate_options()`, `run()`, `fix()` (repeats passes over
     the enabled checks' `Check::fix` until nothing changes, max 10)
+  - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
+    fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
+    prose comments
   - `src/fix.rs` - `Edit` and `apply_edits()`: applies edits from the end of
     the file backwards, skips overlapping ones, and keeps an edit only if the
     result parses and the check's verification closure accepts it
@@ -111,6 +113,9 @@ are implemented yet).
 - Do not add `#[cfg(test)]` modules to `src/`; test through the public API.
 - Every change needs both positive tests (valid input works) and negative
   tests (invalid input is rejected, ideally asserting on the error).
+- Each check has its own `tests/check_<name>.rs`. Fix tests assert
+  idempotence and use `common::pyyaml_equal` (PyYAML, Snapcraft's parser;
+  skipped if unavailable) to confirm the data is unchanged.
 - Use `common::FakeCheck` with `app::run_with_checks` / `checks::run` to test
   the framework; use `tempfile::tempdir()` for filesystem tests.
 - `examples/.craft-tidy` must contain every top-level `Settings` key and only

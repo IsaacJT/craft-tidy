@@ -159,6 +159,58 @@ fn fix_without_fixable_problems_leaves_the_project_file_alone() {
 }
 
 #[test]
+fn reports_and_fixes_long_lines() {
+    let dir = project(None);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let long =
+        "summary: a summary that is far too long to fit on a single line of eighty characters\n";
+    fs::write(&file, format!("name: test\n{long}")).unwrap();
+
+    let output = craft_tidy(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        stdout(&output),
+        "./snap/snapcraft.yaml:2:81: warning: line is 84 characters long, exceeding the \
+         limit of 80 [style-line-length]\n"
+    );
+
+    let output = craft_tidy(dir.path(), &["--warnings-as-errors=style-*"]);
+    assert_eq!(output.status.code(), Some(1));
+
+    let output = craft_tidy(dir.path(), &["--fix", "--warnings-as-errors=style-*"]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "name: test\nsummary: a summary that is far too long to fit on a single line of eighty\n  \
+         characters\n"
+    );
+}
+
+#[test]
+fn line_length_limit_is_configurable() {
+    let dir = project(Some(
+        "check-options:\n  style-line-length:\n    max-length: 8\n",
+    ));
+    let output = craft_tidy(dir.path(), &[]);
+    assert!(stdout(&output).contains("limit of 8 [style-line-length]"));
+
+    let output = craft_tidy(dir.path(), &["-o", "style-line-length.max-length=0"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).contains("must be a positive integer"));
+}
+
+#[test]
+fn explains_style_line_length() {
+    let dir = project(None);
+    let output = craft_tidy(dir.path(), &["--explain", "style-line-length"]);
+    assert_eq!(output.status.code(), Some(0));
+    let out = stdout(&output);
+    assert!(out.starts_with("style-line-length: "), "{out}");
+    assert!(out.contains("max-length (integer, default: 80)"), "{out}");
+}
+
+#[test]
 fn help_describes_configuration() {
     let dir = project(None);
     let output = craft_tidy(dir.path(), &["--help"]);
