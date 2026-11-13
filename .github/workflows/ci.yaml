@@ -52,7 +52,9 @@ jobs:
 
   snap:
     name: Build and test the snap
-    runs-on: ubuntu-latest
+    # snapcraft test runs the spread tests on the runner itself; its system
+    # must be one of the systems in snapcraft-test.yaml.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Pack and run the spread tests

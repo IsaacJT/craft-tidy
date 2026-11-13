@@ -69,7 +69,9 @@ check framework and `--fix` exist. Implemented checks:
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
-  spread), uploading the snap as an artifact
+  spread), uploading the snap as an artifact. Pinned to `ubuntu-24.04`: on
+  CI, `snapcraft test` runs on the runner itself and only selects
+  `craft:<runner OS>`, so that system must stay in `snapcraft-test.yaml`
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,

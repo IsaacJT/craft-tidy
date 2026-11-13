@@ -33,8 +33,9 @@ sudo snap install --dangerous ./craft-tidy_*.snap
 ### Testing the snap
 
 The [spread](https://github.com/canonical/spread) suite in `spread/general/`
-installs the built snap in a fresh Ubuntu VM and runs it end to end, under
-strict confinement. There is one task per craft tool (`charmcraft`,
+installs the built snap in fresh Ubuntu 24.04 and 26.04 VMs and runs it
+end to end, under strict confinement. There is one task per craft tool
+(`charmcraft`,
 `debcraft`, `imagecraft`, `rockcraft`, `snapcraft`: where the project file
 is looked for, findings, `--fix`, and which checks apply), plus tasks for
 informational options (`cli`), `--fix` (`fix`), configuration files
@@ -46,7 +47,10 @@ snapcraft test                                # all tasks
 snapcraft test craft:ubuntu-26.04:spread/general/fix   # a single task
 ```
 
-`snapcraft-test.yaml` defines the backend and the suite;
+`snapcraft-test.yaml` defines the backend, its systems and the suite.
+On CI, `snapcraft test` runs the tasks directly on the runner instead of in
+a VM, and only for the system matching the runner's OS, so the CI runner's
+system must be among the listed systems;
 `spread/.extension` is Snapcraft's stock backend script, changed to wait for
 cloud-init before using apt. Each task is a `task.yaml` in its own
 directory under `spread/general/`. Tasks create their projects in `$WORK`
@@ -198,7 +202,7 @@ request:
 | ----------------- | ---------------------------------------------------------------------------- |
 | Format and lint   | `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`          |
 | Test              | `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
-| Build and test the snap | [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test`; the snap is uploaded as the `craft-tidy-snap` artifact |
+| Build and test the snap | [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test` on an `ubuntu-24.04` runner; the snap is uploaded as the `craft-tidy-snap` artifact |
 
 When raising `rust-version`, update the matrix in the workflow too.
 

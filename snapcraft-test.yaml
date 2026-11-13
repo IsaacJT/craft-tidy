@@ -1,7 +1,11 @@
 backends:
   craft:
     type: craft
+    # On CI, snapcraft test runs the tests directly on the runner and only
+    # selects the system matching the runner's OS, so the CI runner's system
+    # (see .github/workflows/ci.yaml) must be listed here.
     systems:
+      - ubuntu-24.04
       - ubuntu-26.04
 
 suites:
