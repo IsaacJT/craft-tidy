@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Format and lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: craft-tidy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Check formatting
+        run: cargo +stable fmt --check
+      - name: Run clippy
+        run: cargo +stable clippy --all-targets -- -D warnings
+
+  test:
+    name: Test (Rust ${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # stable, and the rust-version declared in craft-tidy/Cargo.toml.
+        rust: [stable, '1.89']
+    defaults:
+      run:
+        working-directory: craft-tidy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install ${{ matrix.rust }} --profile minimal
+      - name: Install PyYAML
+        # Used by the tests to compare fixes with Snapcraft's YAML parser.
+        run: sudo apt-get install -y python3-yaml
+      - name: Run tests
+        run: cargo +${{ matrix.rust }} test
+
+  snap:
+    name: Build and test the snap
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack and run the spread tests
+        id: pack
+        uses: canonical/craft-actions/snapcraft/pack@v1
+        with:
+          test: true
+      - name: Upload the snap
+        uses: actions/upload-artifact@v4
+        with:
+          name: craft-tidy-snap
+          path: ${{ steps.pack.outputs.snaps }}
+          if-no-files-found: error

@@ -189,6 +189,19 @@ Settings must be available both in `.craft-tidy` and on the command line:
 | `serde-saphyr` | YAML parsing with line/column error reporting; its re-exported `granit_parser` event parser builds the `yaml` document tree |
 | `tempfile`     | Temporary directories in tests (dev-dependency only)          |
 
+## Continuous integration
+
+`.github/workflows/ci.yaml` runs on every push to `main` and every pull
+request:
+
+| Job               | What it does                                                                 |
+| ----------------- | ---------------------------------------------------------------------------- |
+| Format and lint   | `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`          |
+| Test              | `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
+| Build and test the snap | [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test`; the snap is uploaded as the `craft-tidy-snap` artifact |
+
+When raising `rust-version`, update the matrix in the workflow too.
+
 ## Submitting changes
 
 1. Fork the repository and create a topic branch from `main`.

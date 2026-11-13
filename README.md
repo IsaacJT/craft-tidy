@@ -296,6 +296,7 @@ comments between its entries is reported but not reordered.
 | `examples/.craft-tidy` | Example configuration file               |
 | `snap/snapcraft.yaml`  | Snap packaging for craft-tidy itself     |
 | `snapcraft-test.yaml`, `spread/` | Spread tests of the snap, run with `snapcraft test` |
+| `.github/workflows/`   | CI: cargo checks and tests, snap build and spread tests |
 | `LICENSE`              | GNU General Public License, version 3    |
 
 ## Contributing

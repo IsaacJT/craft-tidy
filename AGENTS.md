@@ -66,6 +66,10 @@ check framework and `--fix` exist. Implemented checks:
   `craft-tidy/tests/example.rs`
 - `snap/snapcraft.yaml` - snap packaging (base `core26`, `rust` plugin,
   part source `craft-tidy/`, `home` plug)
+- `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
+  and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
+  `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
+  spread), uploading the snap as an artifact
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
