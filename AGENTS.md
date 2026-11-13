@@ -18,7 +18,9 @@ check framework and `--fix` exist. Implemented checks:
 ## Repository layout
 
 - `craft-tidy/` - the Rust crate (all application code lives here)
-  - `Cargo.toml` - crate manifest (`rust-version = "1.89"`)
+  - `Cargo.toml` - crate manifest (`rust-version = "1.89"`; the release
+    profile, also used by the snap, enables `lto`, `codegen-units = 1` and
+    `strip`)
   - `src/main.rs` - thin binary: parses `Cli`, calls `app::run`, maps the
     result to an exit code
   - `src/lib.rs` - module declarations

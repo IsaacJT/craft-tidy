@@ -19,3 +19,9 @@ serde-saphyr = "2.1.1"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+[profile.release]
+# Smaller and slightly faster release builds (as used by the snap).
+lto = true
+codegen-units = 1
+strip = true
