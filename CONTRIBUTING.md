@@ -93,9 +93,10 @@ Guidelines:
   same data before and after. That helper returns `None` when Python 3 with
   PyYAML is not installed, so install `python3-yaml` to get the full
   coverage locally.
-- `examples/.craft-tidy` must set every configuration key, and only set
-  options for checks that exist; `tests/example.rs` enforces this, so update
-  the example whenever you add a setting or a check option.
+- `examples/.craft-tidy` must set every configuration key and every option
+  of every check, to its default, and nothing else; `tests/example.rs`
+  enforces this, so update the example whenever you add a setting, a check
+  or a check option.
 
 ## Adding a check
 

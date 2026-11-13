@@ -9,7 +9,8 @@ Rust and distributed as a strictly confined snap. It is licensed
 `GPL-3.0-only`.
 
 The project is in early development: the CLI, the configuration system, the
-check framework and `--fix` exist. Implemented checks: `style-line-length`.
+check framework and `--fix` exist. Implemented checks: `style-line-length`,
+`style-sorted-lists`.
 
 ## Repository layout
 
@@ -37,6 +38,13 @@ check framework and `--fix` exist. Implemented checks: `style-line-length`.
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments
+  - `src/checks/sorted_lists.rs` - `style-sorted-lists` (options `keys`,
+    `case-sensitive`). Only lists under `keys` (default: known unordered
+    sets; never order-sensitive ones like `command-chain` or `*-parameters`).
+    Advanced grammar (`on`/`to`/`try`/`else`/`else fail`) goes last in
+    original order; nested grammar lists are checked too. Fix moves whole
+    entry lines (with comments above, except above the first entry) and
+    verifies the result equals the original `Value` with that list permuted
   - `src/fix.rs` - `Edit` and `apply_edits()`: applies edits from the end of
     the file backwards, skips overlapping ones, and keeps an edit only if the
     result parses and the check's verification closure accepts it
@@ -118,9 +126,10 @@ check framework and `--fix` exist. Implemented checks: `style-line-length`.
   skipped if unavailable) to confirm the data is unchanged.
 - Use `common::FakeCheck` with `app::run_with_checks` / `checks::run` to test
   the framework; use `tempfile::tempdir()` for filesystem tests.
-- `examples/.craft-tidy` must contain every top-level `Settings` key and only
-  reference registered checks in `check-options`; `tests/example.rs` fails
-  otherwise. Update it whenever settings or check options change.
+- `examples/.craft-tidy` must contain every top-level `Settings` key and
+  every option of every registered check, set to its declared default, and
+  nothing else in `check-options`; `tests/example.rs` fails otherwise.
+  Update it whenever settings, checks or check options change.
 
 ## Exit codes
 

@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use std::fs;
 
 use craft_tidy::checks;
-use craft_tidy::config::{self, CONFIG_FILE_NAME, Settings};
+use craft_tidy::config::{self, CONFIG_FILE_NAME, OptionValue, Settings};
 
 use common::{cli, example_config, project};
 
@@ -33,13 +33,57 @@ fn example_is_a_valid_configuration() {
         settings
             .check_options
             .get("style-line-length", "max-length"),
-        Some(&craft_tidy::config::OptionValue::Integer(80))
+        Some(&OptionValue::Integer(80))
+    );
+    assert_eq!(
+        settings
+            .check_options
+            .get("style-sorted-lists", "case-sensitive"),
+        Some(&OptionValue::Bool(false))
     );
 
     assert!(settings.checks.matches("parts-plugin"));
     assert!(!settings.checks.matches("experimental-thing"));
     assert!(settings.warnings_as_errors.matches("metadata-summary"));
     assert!(!settings.warnings_as_errors.matches("other-check"));
+}
+
+#[test]
+fn example_shows_the_default_option_values() {
+    let settings = Settings::from_file(&example_config()).unwrap();
+    let registry = checks::registry();
+    // Glob lists may continue on the next line, which YAML folds to ", ".
+    let normalize = |value: &OptionValue| match value.as_str() {
+        Some(s) => OptionValue::String(s.replace(", ", ",")),
+        None => value.clone(),
+    };
+    for (check_name, option, value) in settings.check_options.iter() {
+        let check = registry.iter().find(|c| c.name() == check_name).unwrap();
+        let spec = check.options().iter().find(|s| s.name == option).unwrap();
+        assert_eq!(
+            normalize(value),
+            normalize(&OptionValue::parse(spec.default)),
+            "examples/.craft-tidy should show the default of {check_name}.{option}"
+        );
+    }
+}
+
+#[test]
+fn example_shows_every_option_of_every_check() {
+    let settings = Settings::from_file(&example_config()).unwrap();
+    for check in checks::registry() {
+        for spec in check.options() {
+            assert!(
+                settings
+                    .check_options
+                    .get(check.name(), spec.name)
+                    .is_some(),
+                "examples/.craft-tidy should document {}.{}",
+                check.name(),
+                spec.name
+            );
+        }
+    }
 }
 
 #[test]

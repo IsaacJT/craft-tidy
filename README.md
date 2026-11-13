@@ -158,9 +158,10 @@ non-hidden parent directory) instead.
 
 ## Checks
 
-| Check               | Fixable | Description                                            |
-| ------------------- | ------- | ------------------------------------------------------ |
-| `style-line-length` | Partly  | Lines must not be longer than `max-length` characters  |
+| Check                | Fixable | Description                                              |
+| -------------------- | ------- | -------------------------------------------------------- |
+| `style-line-length`  | Partly  | Lines must not be longer than `max-length` characters    |
+| `style-sorted-lists` | Yes     | Entries of unordered lists must be sorted alphabetically |
 
 Run `craft-tidy --list-checks --checks='*'` to list all checks and
 `craft-tidy --explain CHECK` for details.
@@ -190,6 +191,49 @@ wrapped safely and are only reported.
 | Option       | Type    | Default | Description                         |
 | ------------ | ------- | ------- | ----------------------------------- |
 | `max-length` | integer | `80`    | Maximum number of characters per line |
+
+### style-sorted-lists
+
+Reports lists whose entries are not in alphabetical order (ignoring case
+by default). Only lists under the keys selected by the `keys` option are
+checked. By default these are keys whose lists are unordered sets for
+Snapcraft, so sorting them never changes the meaning of the project:
+`after`, `assumes`, `before`, `build-attributes`, `build-for`, `build-on`,
+`build-packages`, `build-snaps`, `plugs`, `slots`, `stage-packages` and
+`stage-snaps`, wherever they appear. Lists whose order matters, such as
+`command-chain` or build tool arguments like `cmake-parameters`, are not
+checked unless you add them.
+
+[Advanced grammar](https://documentation.ubuntu.com/snapcraft/latest/reference/advanced-grammar/)
+entries (`on …:`, `to …:`, `try:`, `else:` and `else fail`) must come after
+all plain entries. They keep their original order, so that each `else`
+stays with the statement it belongs to, and the lists inside them must be
+sorted too:
+
+```yaml
+build-packages:
+  - curl
+  - zlib1g-dev
+  - on arm64:
+      - libfoo-arm
+  - else:
+      - libfoo
+```
+
+Lists that contain other kinds of entries (such as mappings or anchors), or
+an `else` that does not directly follow a grammar statement, are not
+checked.
+
+With `--fix`, the entries are reordered. Whole entries move, including any
+nested content, trailing comments, and comment lines directly above them.
+Comments above the first entry are kept in place as a header for the whole
+list. Flow lists such as `[b, a]` keep their formatting; a flow list with
+comments between its entries is reported but not reordered.
+
+| Option           | Type    | Default        | Description |
+| ---------------- | ------- | -------------- | ----------- |
+| `keys`           | string  | see above      | Globs selecting the keys whose lists must be sorted, in the same syntax as `--checks`, e.g. `"*,-command-chain"` |
+| `case-sensitive` | boolean | `false`        | Sort uppercase letters before lowercase ones instead of ignoring case |
 
 ## Repository layout
 

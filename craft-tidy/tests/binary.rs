@@ -211,6 +211,87 @@ fn explains_style_line_length() {
 }
 
 #[test]
+fn reports_and_fixes_unsorted_lists() {
+    let dir = project(None);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let source = "\
+name: test
+parts:
+  test:
+    plugin: nil
+    build-packages:
+      - zlib1g-dev
+      - on arm64: [libb, liba]
+      - curl
+    override-build: |
+      craftctl default
+";
+    fs::write(&file, source).unwrap();
+
+    let output = craft_tidy(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        stdout(&output),
+        "./snap/snapcraft.yaml:6:9: warning: entries of 'build-packages' are not sorted: \
+         'curl' should come before 'zlib1g-dev' [style-sorted-lists]\n\
+         ./snap/snapcraft.yaml:7:20: warning: entries of 'build-packages: on arm64' are not \
+         sorted: 'liba' should come before 'libb' [style-sorted-lists]\n"
+    );
+
+    let output = craft_tidy(dir.path(), &["--fix"]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "");
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "\
+name: test
+parts:
+  test:
+    plugin: nil
+    build-packages:
+      - curl
+      - zlib1g-dev
+      - on arm64: [liba, libb]
+    override-build: |
+      craftctl default
+"
+    );
+}
+
+#[test]
+fn sorted_list_keys_are_configurable() {
+    let dir = project(Some(
+        "check-options:\n  style-sorted-lists:\n    keys: command-chain\n",
+    ));
+    fs::write(
+        dir.path().join("snap/snapcraft.yaml"),
+        "plugs: [b, a]\ncommand-chain: [b, a]\n",
+    )
+    .unwrap();
+    let output = craft_tidy(dir.path(), &[]);
+    assert!(stdout(&output).contains(":2:"), "{}", stdout(&output));
+    assert!(!stdout(&output).contains(":1:"), "{}", stdout(&output));
+
+    let output = craft_tidy(dir.path(), &["-o", "style-sorted-lists.keys=Not Valid"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).contains("invalid option 'style-sorted-lists.keys'"));
+}
+
+#[test]
+fn explains_style_sorted_lists() {
+    let dir = project(None);
+    let output = craft_tidy(dir.path(), &["--explain", "style-sorted-lists"]);
+    assert_eq!(output.status.code(), Some(0));
+    let out = stdout(&output);
+    assert!(out.starts_with("style-sorted-lists: "), "{out}");
+    assert!(out.contains("keys (string, default: "), "{out}");
+    assert!(
+        out.contains("case-sensitive (boolean, default: false)"),
+        "{out}"
+    );
+}
+
+#[test]
 fn help_describes_configuration() {
     let dir = project(None);
     let output = craft_tidy(dir.path(), &["--help"]);

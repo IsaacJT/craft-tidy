@@ -30,3 +30,13 @@ check-options:
   style-line-length:
     # Maximum number of characters per line. Default: 80.
     max-length: 80
+  style-sorted-lists:
+    # Globs selecting the keys whose lists must be sorted, in the same syntax
+    # as `checks`. Only include keys whose order does not matter to Snapcraft
+    # (not, for example, command-chain or build tool arguments). Spaces after
+    # commas are ignored, so the value can continue on the next line. The
+    # default is shown here.
+    keys: after,assumes,before,build-attributes,build-for,build-on,
+      build-packages,build-snaps,plugs,slots,stage-packages,stage-snaps
+    # Sort uppercase letters before lowercase ones. Default: false.
+    case-sensitive: false
