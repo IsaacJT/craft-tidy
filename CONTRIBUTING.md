@@ -235,6 +235,16 @@ Settings must be available both in `.craft-tidy` and on the command line:
 | `serde_json`   | JSON values of LSP messages                                   |
 | `tempfile`     | Temporary directories in tests (dev-dependency only)          |
 
+## The VS Code extension
+
+`editors/vscode/` is a small JavaScript extension (no build step) that
+starts `craft-tidy lsp` through `vscode-languageclient`; all features are
+in the server. Package it with `npm install && npm run package` (Node.js
+22). Its icon is rendered from `snap/gui/craft-tidy.svg` (Noto Emoji,
+Apache-2.0), whose license it ships as `LICENSE.noto-emoji`. Keep its list
+of project file names in `extension.js` and `package.json` in sync with
+`Craft::project_file_locations()`, and its `version` with craft-tidy's.
+
 ## Continuous integration
 
 `.github/workflows/ci.yaml` runs on every push to `main`, every pull
@@ -245,6 +255,7 @@ request, and on demand (`workflow_dispatch`):
 | Format and lint   | `ubuntu-latest`: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`          |
 | Test              | `ubuntu-latest`: `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
 | Build and test the snap | For amd64 (`ubuntu-24.04` runner) and arm64 (`ubuntu-24.04-arm` runner), each built natively: [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test`; the snaps are uploaded as the `craft-tidy-snap-amd64` and `craft-tidy-snap-arm64` artifacts |
+| Package the VS Code extension | `npm ci` and `npm run package` in `editors/vscode/`; the `.vsix` is uploaded as the `craft-tidy-vscode` artifact |
 | Publish to edge   | Pushes to `main` only, after all other jobs pass: [`snapcore/action-publish`](https://github.com/snapcore/action-publish) uploads both snaps to the Snap Store and releases them to `edge` |
 
 When raising `rust-version`, update the matrix in the workflow too. When

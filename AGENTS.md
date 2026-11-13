@@ -158,6 +158,12 @@ check framework and `--fix` exist. Implemented checks:
   PNGs have no license file of their own). `snap/gui/LICENSE.noto-emoji`
   holds the notice and full license text and is shipped in the snap
   (`meta/gui/`); keep it with the icon and keep the README attribution
+- `editors/vscode/` - VS Code extension (plain JS, `vscode-languageclient`,
+  no build step; `npm run package` builds a `.vsix`; `package-lock.json`
+  committed, `node_modules/` and `*.vsix` ignored). Its document selector
+  lists the project file names (keep in sync with `Craft`), its `version`
+  follows craft-tidy's; `icon.png` is rendered from the Noto SVG (ships
+  `LICENSE.noto-emoji`)
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
@@ -169,7 +175,8 @@ check framework and `--fix` exist. Implemented checks:
   stay in `snapcraft-test.yaml`. The `publish` job (pushes to `main` only,
   `needs` all others, environment `snap-store`, secret
   `SNAPCRAFT_STORE_CREDENTIALS`) releases both snaps to `edge` with
-  `snapcore/action-publish@v1`. The architectures CI builds are decided by
+  `snapcore/action-publish@v1`. A `vscode` job packages the extension
+  (`npm ci`, `npm run package`) and uploads the `.vsix`. The architectures CI builds are decided by
   the runners alone; keep the snap and publish matrices in sync
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
@@ -374,7 +381,8 @@ settings or exit behaviour go in `cli`, `config`, `errors` or `fix`.
   deprecated `serde_yaml`/`serde_yml` crates.
 - Add positive and negative tests in `craft-tidy/tests/` for any new check,
   setting or bug fix.
-- Keep `version` in `craft-tidy/Cargo.toml` and `snap/snapcraft.yaml` in sync,
+- Keep `version` in `craft-tidy/Cargo.toml`, `snap/snapcraft.yaml` and
+  `editors/vscode/package.json` in sync,
   and the author and upstream metadata too: `authors`, `repository` and
   `homepage` in `Cargo.toml`, and `contact`, `issues`, `source-code` and
   `website` in `snapcraft.yaml` (upstream: https://github.com/IsaacJT/craft-tidy).

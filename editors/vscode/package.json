@@ -1,0 +1,63 @@
+{
+  "name": "craft-tidy",
+  "displayName": "craft-tidy",
+  "description": "Lint the project files of Canonical's craft tools (snapcraft.yaml, charmcraft.yaml, rockcraft.yaml, ...) as you edit them",
+  "version": "0.1.0",
+  "publisher": "IsaacJT",
+  "author": "Isaac True <isaac.true@canonical.com>",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IsaacJT/craft-tidy"
+  },
+  "bugs": {
+    "url": "https://github.com/IsaacJT/craft-tidy/issues"
+  },
+  "homepage": "https://github.com/IsaacJT/craft-tidy",
+  "icon": "icon.png",
+  "categories": [
+    "Linters"
+  ],
+  "keywords": [
+    "snapcraft",
+    "charmcraft",
+    "rockcraft",
+    "craft",
+    "yaml"
+  ],
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "activationEvents": [
+    "workspaceContains:**/{snapcraft,charmcraft,rockcraft,imagecraft,debcraft,.snapcraft}.yaml",
+    "onLanguage:yaml"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "craft-tidy",
+      "properties": {
+        "craftTidy.path": {
+          "type": "string",
+          "default": "craft-tidy",
+          "markdownDescription": "The `craft-tidy` executable to run as a language server (`craft-tidy lsp`), such as `/snap/bin/craft-tidy`. Restart the extension after changing it."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "craftTidy.restart",
+        "title": "craft-tidy: Restart language server"
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+  "scripts": {
+    "package": "vsce package"
+  }
+}

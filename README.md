@@ -205,6 +205,20 @@ output; it is not meant to be run by hand.
 `lsp`, pass it as `./lsp`. As with the command line, the snap can only read
 `.craft-tidy` files in your home directory.
 
+### Visual Studio Code
+
+The extension in [`editors/vscode/`](editors/vscode/) starts the server for
+project files. Until it is published, build it with `npm install && npm
+run package` there and install the `.vsix` file with **Extensions: Install
+from VSIX…** (CI also builds it). To fix all problems on save, add to your
+settings:
+
+```json
+"[yaml]": {
+  "editor.codeActionsOnSave": { "source.fixAll": "explicit" }
+}
+```
+
 ### Neovim (0.11 or later)
 
 ```lua
@@ -567,6 +581,7 @@ comments between its entries is reported but not reordered.
 | `examples/.craft-tidy` | Example configuration file               |
 | `snap/snapcraft.yaml`  | Snap packaging for craft-tidy itself     |
 | `craft-tidy/src/lsp.rs` | The language server (`craft-tidy lsp`) |
+| `editors/vscode/`      | VS Code extension running the language server |
 | `snap/gui/`            | Snap icon (Noto Emoji star, Apache-2.0) and its license |
 | `snapcraft-test.yaml`, `spread/` | Spread tests of the snap, run with `snapcraft test` |
 | `.github/workflows/`   | CI: cargo checks and tests, snap build and spread tests |
