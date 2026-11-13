@@ -389,6 +389,7 @@ comments between its entries is reported but not reordered.
 | `craft-tidy/tests/`    | Test suite                               |
 | `examples/.craft-tidy` | Example configuration file               |
 | `snap/snapcraft.yaml`  | Snap packaging for craft-tidy itself     |
+| `snap/gui/`            | Snap icon (Noto Emoji star, Apache-2.0) and its license |
 | `snapcraft-test.yaml`, `spread/` | Spread tests of the snap, run with `snapcraft test` |
 | `.github/workflows/`   | CI: cargo checks and tests, snap build and spread tests |
 | `LICENSE`              | GNU General Public License, version 3    |
@@ -402,3 +403,10 @@ details on setting up a development environment and submitting changes.
 
 craft-tidy is licensed under the GNU General Public License, version 3 only
 (`GPL-3.0-only`). See [LICENSE](LICENSE) for the full text.
+
+The snap's icon, `snap/gui/craft-tidy.svg`, is the star emoji (U+2B50)
+from [Noto Emoji](https://github.com/googlefonts/noto-emoji) (file
+`2D/svg/emoji_u2b50.svg`), copyright 2013 Google, Inc. and licensed under
+the Apache License, Version 2.0. Its license is in
+[snap/gui/LICENSE.noto-emoji](snap/gui/LICENSE.noto-emoji) and is also
+shipped in the snap.

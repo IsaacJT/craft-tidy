@@ -1,5 +1,8 @@
 name: craft-tidy
 title: craft-tidy
+# The star emoji from Noto Emoji, Apache License 2.0; see
+# snap/gui/LICENSE.noto-emoji.
+icon: snap/gui/craft-tidy.svg
 base: core26
 version: '0.1.0'
 summary: A linter for craft project files such as snapcraft.yaml

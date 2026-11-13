@@ -88,6 +88,12 @@ check framework and `--fix` exist. Implemented checks:
   part source `craft-tidy/`, `home` plug; `grade: devel`, which the store
   only allows on `edge`/`beta`). Deliberately has no `platforms` key, so it
   builds for whatever architecture it is built on; do not add one
+- `snap/gui/craft-tidy.svg` - snap icon (`icon:` in `snapcraft.yaml`): the
+  Noto Emoji star, `2D/svg/emoji_u2b50.svg`, Apache-2.0 (the `2D/svg/`
+  assets are Apache-2.0; Noto's fonts and root `LICENSE` are OFL, and its
+  PNGs have no license file of their own). `snap/gui/LICENSE.noto-emoji`
+  holds the notice and full license text and is shipped in the snap
+  (`meta/gui/`); keep it with the icon and keep the README attribution
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
