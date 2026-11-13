@@ -2,7 +2,14 @@
 name = "craft-tidy"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.89"
 description = "A linter for Snapcraft projects"
 license = "GPL-3.0-only"
 
 [dependencies]
+clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde-saphyr = "2.1.1"
+
+[dev-dependencies]
+tempfile = "3.27.0"

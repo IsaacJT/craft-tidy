@@ -1,0 +1,233 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
+//! Tests for the check framework (`craft_tidy::checks`).
+
+mod common;
+
+use craft_tidy::checks::{self, Check, Diagnostic, Severity};
+use craft_tidy::config::{OptionValue, Settings};
+use craft_tidy::project::Project;
+
+use common::FakeCheck;
+
+fn project() -> Project {
+    Project {
+        path: "snapcraft.yaml".into(),
+        source: "name: test\n".to_owned(),
+    }
+}
+
+fn settings(checks: &str, warnings_as_errors: &str) -> Settings {
+    let mut settings = Settings::defaults();
+    settings.checks.extend(checks.parse().unwrap());
+    settings.warnings_as_errors = warnings_as_errors.parse().unwrap();
+    settings
+}
+
+fn names(checks: &[&dyn Check]) -> Vec<&'static str> {
+    checks.iter().map(|check| check.name()).collect()
+}
+
+fn summary(diagnostics: &[Diagnostic]) -> Vec<(&'static str, Severity, &str)> {
+    diagnostics
+        .iter()
+        .map(|d| (d.check, d.severity, d.message.as_str()))
+        .collect()
+}
+
+fn registry() -> Vec<Box<dyn Check>> {
+    vec![
+        FakeCheck::new("metadata-a")
+            .finding("meta", Some((1, 1)))
+            .boxed(),
+        FakeCheck::new("parts-a")
+            .finding("part a", Some((3, 5)))
+            .boxed(),
+        FakeCheck::new("parts-b")
+            .finding("part b", Some((2, 1)))
+            .boxed(),
+    ]
+}
+
+// Diagnostics
+
+#[test]
+fn diagnostics_start_as_located_or_unlocated_warnings() {
+    let diagnostic = Diagnostic::warning("check", "message");
+    assert_eq!(diagnostic.check, "check");
+    assert_eq!(diagnostic.severity, Severity::Warning);
+    assert_eq!(diagnostic.message, "message");
+    assert_eq!(diagnostic.location, None);
+    assert_eq!(diagnostic.at(4, 2).location, Some((4, 2)));
+}
+
+#[test]
+fn severities_display_in_lowercase_and_are_ordered() {
+    assert_eq!(Severity::Warning.to_string(), "warning");
+    assert_eq!(Severity::Error.to_string(), "error");
+    assert!(Severity::Warning < Severity::Error);
+}
+
+// Registry
+
+#[test]
+fn registry_is_sorted_with_unique_valid_names() {
+    let registry = checks::registry();
+    let names: Vec<_> = registry.iter().map(|c| c.name()).collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(names, sorted, "registry must be sorted and unique");
+    for check in &registry {
+        let name = check.name();
+        assert!(
+            name.contains('-')
+                && name
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
+            "{name} must be kebab-case with a category prefix"
+        );
+        assert!(!check.summary().is_empty(), "{name} needs a summary");
+        assert!(
+            !check.explanation().is_empty(),
+            "{name} needs an explanation"
+        );
+    }
+}
+
+// Selecting checks
+
+#[test]
+fn all_checks_are_enabled_by_default() {
+    let registry = registry();
+    assert_eq!(
+        names(&checks::enabled(&registry, &Settings::defaults())),
+        ["metadata-a", "parts-a", "parts-b"]
+    );
+}
+
+#[test]
+fn checks_globs_select_checks() {
+    let registry = registry();
+    let enabled = |globs| names(&checks::enabled(&registry, &settings(globs, "")));
+    assert_eq!(enabled("-*,parts-*"), ["parts-a", "parts-b"]);
+    assert_eq!(enabled("-parts-*"), ["metadata-a"]);
+    assert_eq!(enabled("-*,parts-*,-parts-b"), ["parts-a"]);
+}
+
+#[test]
+fn no_checks_are_enabled_when_all_are_disabled() {
+    let registry = registry();
+    assert!(checks::enabled(&registry, &settings("-*", "")).is_empty());
+    assert!(checks::enabled(&registry, &settings("-*,unknown-*", "")).is_empty());
+    assert!(checks::enabled(&[], &Settings::defaults()).is_empty());
+}
+
+// Running checks
+
+#[test]
+fn runs_enabled_checks_sorted_by_location() {
+    let registry = registry();
+    let settings = Settings::defaults();
+    let diagnostics = checks::run(
+        &checks::enabled(&registry, &settings),
+        &project(),
+        &settings,
+    );
+    assert_eq!(
+        summary(&diagnostics),
+        [
+            ("metadata-a", Severity::Warning, "meta"),
+            ("parts-b", Severity::Warning, "part b"),
+            ("parts-a", Severity::Warning, "part a"),
+        ]
+    );
+}
+
+#[test]
+fn disabled_checks_are_not_run() {
+    let enabled = FakeCheck::new("parts-a").finding("x", None);
+    let disabled = FakeCheck::new("parts-b").finding("y", None);
+    let (enabled_runs, disabled_runs) = (enabled.runs.clone(), disabled.runs.clone());
+    let registry = vec![enabled.boxed(), disabled.boxed()];
+    let settings = settings("-parts-b", "");
+
+    let diagnostics = checks::run(
+        &checks::enabled(&registry, &settings),
+        &project(),
+        &settings,
+    );
+    assert_eq!(summary(&diagnostics), [("parts-a", Severity::Warning, "x")]);
+    assert_eq!(enabled_runs.get(), 1);
+    assert_eq!(disabled_runs.get(), 0);
+}
+
+#[test]
+fn checks_without_findings_report_nothing() {
+    let registry = vec![FakeCheck::new("parts-a").boxed()];
+    let settings = Settings::defaults();
+    let enabled = checks::enabled(&registry, &settings);
+    assert!(checks::run(&enabled, &project(), &settings).is_empty());
+    assert!(checks::run(&[], &project(), &settings).is_empty());
+}
+
+#[test]
+fn warnings_as_errors_promotes_matching_checks_only() {
+    let registry = registry();
+    let settings = settings("*", "parts-*,-parts-b");
+    let diagnostics = checks::run(
+        &checks::enabled(&registry, &settings),
+        &project(),
+        &settings,
+    );
+    assert_eq!(
+        summary(&diagnostics),
+        [
+            ("metadata-a", Severity::Warning, "meta"),
+            ("parts-b", Severity::Warning, "part b"),
+            ("parts-a", Severity::Error, "part a"),
+        ]
+    );
+}
+
+#[test]
+fn checks_receive_their_own_options_only() {
+    let registry = vec![
+        FakeCheck::new("parts-a").boxed(),
+        FakeCheck::new("parts-b").boxed(),
+    ];
+    let mut settings = Settings::defaults();
+    settings.check_options.set(
+        "parts-a",
+        "extra",
+        OptionValue::String("from option".into()),
+    );
+    settings
+        .check_options
+        .set("parts-b", "other", OptionValue::String("ignored".into()));
+
+    let diagnostics = checks::run(
+        &checks::enabled(&registry, &settings),
+        &project(),
+        &settings,
+    );
+    assert_eq!(
+        summary(&diagnostics),
+        [("parts-a", Severity::Warning, "from option")]
+    );
+}
+
+#[test]
+fn wrongly_typed_options_are_ignored_by_typed_accessors() {
+    let registry = vec![FakeCheck::new("parts-a").boxed()];
+    let mut settings = Settings::defaults();
+    settings
+        .check_options
+        .set("parts-a", "extra", OptionValue::Integer(1));
+    let diagnostics = checks::run(
+        &checks::enabled(&registry, &settings),
+        &project(),
+        &settings,
+    );
+    assert!(diagnostics.is_empty());
+}
