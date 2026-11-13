@@ -63,7 +63,7 @@ Run `craft-tidy --help` for the full reference.
 | ---- | ---------------------------------------------------------- |
 | 0    | No errors were found (warnings may have been reported)     |
 | 1    | At least one finding was reported as an error              |
-| 2    | Invalid usage, invalid configuration or an I/O error       |
+| 2    | Invalid usage, invalid configuration, a project file that is not valid YAML, or an I/O error |
 
 ## Configuration
 

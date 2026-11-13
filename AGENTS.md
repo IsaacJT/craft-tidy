@@ -26,7 +26,12 @@ are implemented yet).
   - `src/config.rs` - `Settings`, `CheckOptions`, `OptionValue`, `.craft-tidy`
     parsing/serialization and upward discovery
   - `src/glob.rs` - `GlobList`, clang-tidy style check globs
-  - `src/project.rs` - locating/loading `snapcraft.yaml`
+  - `src/project.rs` - locating/loading `snapcraft.yaml`; `Project` holds the
+    path and the parsed `yaml::Document` (`project.source()` for the text)
+  - `src/yaml.rs` - `Document` (source text, node tree, comment spans, line
+    helpers), `Node` with byte-range `span`s, and the presentation-free
+    `Value` model used to verify fixes. Built from
+    `serde_saphyr::granit_parser` events (no extra dependency)
   - `src/checks/mod.rs` - `Check` trait, `Diagnostic`, `registry()`,
     `enabled()`, `run()`
   - `src/error.rs` - crate `Error` enum
@@ -72,7 +77,7 @@ are implemented yet).
 ## Testing
 
 - All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`,
-  `config.rs`, `cli.rs`, `project.rs`, `checks.rs`, `app.rs`), plus
+  `config.rs`, `cli.rs`, `project.rs`, `yaml.rs`, `checks.rs`, `app.rs`), plus
   `example.rs` (the example config) and `binary.rs` (end-to-end runs of the
   compiled binary). Shared helpers are in `tests/common/mod.rs`, included
   with `mod common;`.
@@ -88,7 +93,8 @@ are implemented yet).
 ## Exit codes
 
 `0` success, `1` at least one error-severity finding, `2` usage,
-configuration or I/O error (same as clap's usage error code).
+configuration, project YAML syntax or I/O error (same as clap's usage error
+code).
 
 ## Commands
 

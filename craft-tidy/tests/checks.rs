@@ -11,10 +11,7 @@ use craft_tidy::project::Project;
 use common::FakeCheck;
 
 fn project() -> Project {
-    Project {
-        path: "snapcraft.yaml".into(),
-        source: "name: test\n".to_owned(),
-    }
+    Project::new("snapcraft.yaml", "name: test\n").unwrap()
 }
 
 fn settings(checks: &str, warnings_as_errors: &str) -> Settings {

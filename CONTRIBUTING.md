@@ -53,7 +53,8 @@ The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
 | `cli`         | Command line definition (clap derive) and flag parsing           |
 | `config`      | `Settings` layers, `.craft-tidy` parsing, merging and discovery  |
 | `glob`        | clang-tidy style check selection globs                           |
-| `project`     | Locating and loading the `snapcraft.yaml` file                   |
+| `project`     | Locating, loading and parsing the `snapcraft.yaml` file          |
+| `yaml`        | YAML document tree with source positions, and the `Value` model  |
 | `checks`      | The `Check` trait, the check registry and the check runner       |
 | `app`         | Top-level program flow: resolving settings and running actions   |
 | `error`       | The crate's error type                                           |
@@ -69,7 +70,8 @@ module through the crate's public API:
 | `tests/glob.rs`    | `glob`: parsing, matching, precedence, YAML (de)serialization   |
 | `tests/config.rs`  | `config`: parsing, validation, merging, serialization, discovery |
 | `tests/cli.rs`     | `cli`: argument parsing and validation                          |
-| `tests/project.rs` | `project`: locating and loading `snapcraft.yaml`                |
+| `tests/project.rs` | `project`: locating, loading and parsing `snapcraft.yaml`       |
+| `tests/yaml.rs`    | `yaml`: tree structure, spans, values, lines, syntax errors     |
 | `tests/checks.rs`  | `checks`: selection, running, `warnings-as-errors`, options     |
 | `tests/app.rs`     | `app`: settings layering, output and every action               |
 | `tests/example.rs` | `examples/.craft-tidy` is valid, complete and up to date        |
@@ -128,7 +130,7 @@ Settings must be available both in `.craft-tidy` and on the command line:
 | -------------- | ------------------------------------------------------------- |
 | `clap`         | Command line parsing, help output                             |
 | `serde`        | Deserializing and serializing configuration                   |
-| `serde-saphyr` | YAML parsing with line/column error reporting                 |
+| `serde-saphyr` | YAML parsing with line/column error reporting; its re-exported `granit_parser` event parser builds the `yaml` document tree |
 | `tempfile`     | Temporary directories in tests (dev-dependency only)          |
 
 ## Submitting changes

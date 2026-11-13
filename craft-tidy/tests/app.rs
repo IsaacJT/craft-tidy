@@ -197,6 +197,15 @@ fn missing_project_file_is_an_error() {
 }
 
 #[test]
+fn invalid_project_yaml_is_an_error() {
+    let dir = project(None);
+    fs::write(dir.path().join("snap/snapcraft.yaml"), "name: [test\n").unwrap();
+    let run = execute(&registry(), &[dir.path().to_str().unwrap()]);
+    assert!(matches!(run.result, Err(Error::Syntax { .. })));
+    assert_eq!(run.out, "");
+}
+
+#[test]
 fn warns_about_options_for_unknown_checks() {
     let dir = project(None);
     let path = dir.path().to_str().unwrap();

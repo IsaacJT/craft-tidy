@@ -6,6 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::Error;
+use crate::yaml::Document;
 
 /// Locations of the project file relative to the project directory, in the
 /// order Snapcraft searches them.
@@ -21,11 +22,20 @@ pub const PROJECT_FILE_LOCATIONS: &[&str] = &[
 pub struct Project {
     /// Path to the project file.
     pub path: PathBuf,
-    /// Contents of the project file.
-    pub source: String,
+    /// The parsed project file.
+    pub document: Document,
 }
 
 impl Project {
+    /// Parses `source` as the contents of the project file at `path`.
+    pub fn new(path: impl Into<PathBuf>, source: impl Into<String>) -> Result<Self, Error> {
+        let path = path.into();
+        match Document::parse(source) {
+            Ok(document) => Ok(Self { path, document }),
+            Err(error) => Err(Error::Syntax { path, error }),
+        }
+    }
+
     /// Loads the project file at `path`, or found in the directory `path`.
     pub fn load(path: &Path) -> Result<Self, Error> {
         let path = find(path)?;
@@ -33,7 +43,12 @@ impl Project {
             path: path.clone(),
             source,
         })?;
-        Ok(Self { path, source })
+        Self::new(path, source)
+    }
+
+    /// Contents of the project file.
+    pub fn source(&self) -> &str {
+        self.document.source()
     }
 }
 

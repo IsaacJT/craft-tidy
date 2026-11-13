@@ -213,6 +213,18 @@ fn missing_project_file_is_an_error() {
 }
 
 #[test]
+fn invalid_project_yaml_is_an_error() {
+    let dir = project(None);
+    fs::write(dir.path().join("snap/snapcraft.yaml"), "name: [test\n").unwrap();
+    let output = craft_tidy(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        stderr(&output),
+        "craft-tidy: error: ./snap/snapcraft.yaml:1:7: invalid YAML: unclosed bracket '['\n"
+    );
+}
+
+#[test]
 fn explain_unknown_check_is_an_error() {
     let dir = project(None);
     let output = craft_tidy(dir.path(), &["--explain", "no-such-check"]);

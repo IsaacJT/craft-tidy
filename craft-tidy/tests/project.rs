@@ -7,6 +7,7 @@ use std::path::Path;
 
 use craft_tidy::error::Error;
 use craft_tidy::project::{self, PROJECT_FILE_LOCATIONS, Project};
+use craft_tidy::yaml::Value;
 
 fn write(root: &Path, relative: &str, contents: &str) {
     let path = root.join(relative);
@@ -52,7 +53,47 @@ fn load_reads_the_project_file() {
     write(dir.path(), "snap/snapcraft.yaml", "name: test\n");
     let project = Project::load(dir.path()).unwrap();
     assert_eq!(project.path, dir.path().join("snap/snapcraft.yaml"));
-    assert_eq!(project.source, "name: test\n");
+    assert_eq!(project.source(), "name: test\n");
+    let scalar = |s: &str| Value::Scalar {
+        value: s.into(),
+        plain: true,
+    };
+    assert_eq!(
+        project.document.value(),
+        Some(Value::Mapping(vec![(scalar("name"), scalar("test"))]))
+    );
+}
+
+#[test]
+fn new_parses_the_source() {
+    let project = Project::new("snapcraft.yaml", "a: [b]\n").unwrap();
+    assert!(project.document.root().is_some());
+    let empty = Project::new("snapcraft.yaml", "").unwrap();
+    assert!(empty.document.root().is_none());
+}
+
+#[test]
+fn invalid_yaml_is_a_located_syntax_error() {
+    let err = Project::new("snap/snapcraft.yaml", "name: test\nparts: [a\n").unwrap_err();
+    let Error::Syntax { path, error } = &err else {
+        panic!("expected a syntax error, got {err:?}");
+    };
+    assert_eq!(path, Path::new("snap/snapcraft.yaml"));
+    assert_eq!((error.line, error.column), (2, 8));
+    assert_eq!(
+        err.to_string(),
+        "snap/snapcraft.yaml:2:8: invalid YAML: unclosed bracket '['"
+    );
+}
+
+#[test]
+fn load_reports_invalid_yaml() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "snapcraft.yaml", "a: b\n  c: d\n");
+    assert!(matches!(
+        Project::load(dir.path()),
+        Err(Error::Syntax { .. })
+    ));
 }
 
 #[test]
