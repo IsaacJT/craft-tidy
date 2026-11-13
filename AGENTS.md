@@ -31,6 +31,8 @@ are implemented yet).
     `enabled()`, `run()`
   - `src/error.rs` - crate `Error` enum
   - `tests/` - the whole test suite (see [Testing](#testing))
+- `examples/.craft-tidy` - commented example configuration, verified by
+  `craft-tidy/tests/example.rs`
 - `snap/snapcraft.yaml` - snap packaging (base `core26`, `rust` plugin,
   part source `craft-tidy/`, `home` plug)
 - `README.md` - user-facing introduction, usage and configuration reference
@@ -71,13 +73,17 @@ are implemented yet).
 
 - All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`,
   `config.rs`, `cli.rs`, `project.rs`, `checks.rs`, `app.rs`), plus
-  `binary.rs` (end-to-end runs of the compiled binary). Shared helpers are
-  in `tests/common/mod.rs`, included with `mod common;`.
+  `example.rs` (the example config) and `binary.rs` (end-to-end runs of the
+  compiled binary). Shared helpers are in `tests/common/mod.rs`, included
+  with `mod common;`.
 - Do not add `#[cfg(test)]` modules to `src/`; test through the public API.
 - Every change needs both positive tests (valid input works) and negative
   tests (invalid input is rejected, ideally asserting on the error).
 - Use `common::FakeCheck` with `app::run_with_checks` / `checks::run` to test
   the framework; use `tempfile::tempdir()` for filesystem tests.
+- `examples/.craft-tidy` must contain every top-level `Settings` key and only
+  reference registered checks in `check-options`; `tests/example.rs` fails
+  otherwise. Update it whenever settings or check options change.
 
 ## Exit codes
 
@@ -134,3 +140,4 @@ layout, build steps, dependencies or conventions change. In particular:
   test file table, how to add checks/settings, dependency table, workflow.
 - `AGENTS.md`: overview, layout, configuration model, testing, commands,
   conventions.
+- `examples/.craft-tidy`: every setting, and options of existing checks.

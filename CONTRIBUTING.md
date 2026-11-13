@@ -58,6 +58,7 @@ module through the crate's public API:
 | `tests/project.rs` | `project`: locating and loading `snapcraft.yaml`                |
 | `tests/checks.rs`  | `checks`: selection, running, `warnings-as-errors`, options     |
 | `tests/app.rs`     | `app`: settings layering, output and every action               |
+| `tests/example.rs` | `examples/.craft-tidy` is valid, complete and up to date        |
 | `tests/binary.rs`  | End-to-end runs of the compiled binary and its exit codes       |
 | `tests/common/`    | Shared helpers, including `FakeCheck`                           |
 
@@ -68,6 +69,9 @@ Guidelines:
 - Use `common::FakeCheck` with `app::run_with_checks` or `checks::run` to
   test the framework independently of the real checks.
 - Use `tempfile::tempdir()` for anything touching the filesystem.
+- `examples/.craft-tidy` must set every configuration key, and only set
+  options for checks that exist; `tests/example.rs` enforces this, so update
+  the example whenever you add a setting or a check option.
 
 ## Adding a check
 
@@ -86,7 +90,8 @@ Guidelines:
 5. Register the check in `checks::registry()`.
 6. Add tests in a new file `craft-tidy/tests/check_<name>.rs` covering
    projects that pass, projects that fail, and each option.
-7. Document the check and its options in `README.md`.
+7. Document the check and its options in `README.md`, and show its options
+   in `examples/.craft-tidy`.
 
 ## Adding a configuration setting
 
@@ -101,7 +106,7 @@ Settings must be available both in `.craft-tidy` and on the command line:
    `Cli::settings()`.
 4. Add tests in `tests/config.rs`, `tests/cli.rs` and `tests/app.rs`, for both
    valid and invalid values.
-5. Document the setting in `README.md`.
+5. Add the setting to `examples/.craft-tidy` and document it in `README.md`.
 
 ## Dependencies
 

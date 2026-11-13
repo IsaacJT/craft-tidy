@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
-use common::project;
+use common::{example_config, project};
 
 fn craft_tidy(dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_craft-tidy"))
@@ -126,6 +126,21 @@ fn dumped_config_is_a_valid_config_file() {
     let again = craft_tidy(dir.path(), &["--dump-config"]);
     assert_eq!(again.status.code(), Some(0), "{}", stderr(&again));
     assert_eq!(stdout(&again), stdout(&output));
+}
+
+#[test]
+fn example_config_is_accepted_without_warnings() {
+    let dir = project(None);
+    let example = example_config();
+    let example = example.to_str().unwrap();
+
+    let output = craft_tidy(dir.path(), &["--config-file", example, "--dump-config"]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    assert_eq!(stderr(&output), "");
+    assert!(stdout(&output).contains("checks: \"*,-experimental-*\""));
+
+    let output = craft_tidy(dir.path(), &["--config-file", example]);
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
 }
 
 #[test]

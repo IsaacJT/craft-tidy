@@ -80,6 +80,10 @@ check-options:
     max-length: 79
 ```
 
+A fully commented example covering every key is available in
+[`examples/.craft-tidy`](examples/.craft-tidy); copy it into your project to
+get started.
+
 | Key                  | Description                                                          |
 | -------------------- | -------------------------------------------------------------------- |
 | `checks`             | Globs selecting the checks to run. Default: `"*"` (all checks)       |
@@ -128,6 +132,7 @@ non-hidden parent directory) instead.
 | ---------------------- | ---------------------------------------- |
 | `craft-tidy/`          | Rust crate containing the application    |
 | `craft-tidy/tests/`    | Test suite                               |
+| `examples/.craft-tidy` | Example configuration file               |
 | `snap/snapcraft.yaml`  | Snap packaging for craft-tidy itself     |
 | `LICENSE`              | GNU General Public License, version 3    |
 

@@ -7,12 +7,18 @@
 
 use std::cell::Cell;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use clap::Parser;
 use craft_tidy::checks::{Check, Context, Diagnostic};
 use craft_tidy::cli::Cli;
 use tempfile::TempDir;
+
+/// Path of the example configuration shipped in the repository.
+pub fn example_config() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/.craft-tidy")
+}
 
 /// Creates a temporary project containing `snap/snapcraft.yaml` and, if
 /// given, a `.craft-tidy` file.

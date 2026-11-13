@@ -1,0 +1,28 @@
+# Example craft-tidy configuration.
+#
+# Copy this file to the root of your Snapcraft project as `.craft-tidy`.
+# craft-tidy looks for it in the project directory and its parents. Every key
+# is optional; omitted keys keep their defaults. Command line flags override
+# the values in this file (see `craft-tidy --help`), and
+# `craft-tidy --dump-config` shows the effective configuration.
+
+# Globs selecting the checks to run, evaluated left to right; the last glob
+# matching a check decides whether it runs. `*` matches any characters and a
+# leading `-` disables the matching checks. Default: "*" (all checks).
+# This can also be written as a YAML list.
+checks:
+  - "*"
+  - "-experimental-*"
+
+# Globs selecting checks whose findings are reported as errors, which makes
+# craft-tidy exit with status 1. Default: "" (all findings are warnings).
+warnings-as-errors: "metadata-*,parts-*"
+
+# Options for individual checks, keyed by check name. Values may be booleans,
+# integers, floats or strings. Run `craft-tidy --explain CHECK` to see the
+# options supported by a check. For example:
+#
+# check-options:
+#   check-name:
+#     option-name: 42
+check-options: {}
