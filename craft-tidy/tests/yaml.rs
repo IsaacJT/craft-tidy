@@ -104,6 +104,17 @@ fn spans_locate_nodes_in_the_source() {
 }
 
 #[test]
+fn block_scalar_spans_end_at_their_last_line_break() {
+    let source = "a:\n  - >-\n    folded\n    text\n  - b\nc: |\n  lit\n\nd: e\n";
+    let doc = parse(source);
+    let top = entries(root(&doc));
+    let list = items(&top[0].1);
+    assert_eq!(text(&doc, &list[0]), "folded\n    text\n");
+    assert_eq!(text(&doc, &top[0].1), "- >-\n    folded\n    text\n  - b");
+    assert_eq!(text(&doc, &top[1].1), "lit\n\n");
+}
+
+#[test]
 fn anchors_and_tags_mark_nodes_as_decorated() {
     let doc = parse("a: &x 1\nb: *x\nc: !!str 2\nd: 3\ne: &y [1]\n");
     let top = entries(root(&doc));

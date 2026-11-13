@@ -77,9 +77,10 @@ pub enum NodeKind {
 pub struct Node {
     pub kind: NodeKind,
     /// Byte range of the node in the source. Quoted scalars include their
-    /// quotes, block scalars cover their content lines (not the `|`/`>`
-    /// header), flow collections include their brackets and block
-    /// collections run from their first entry to the end of their last one.
+    /// quotes, block scalars cover their content lines up to and including
+    /// the last line break (not the `|`/`>` header), flow collections
+    /// include their brackets and block collections run from their first
+    /// entry to the end of their last one.
     pub span: Range<usize>,
     /// Whether the node has an anchor or a tag. These precede the node and
     /// are not included in `span`.
@@ -325,14 +326,25 @@ fn build_tree(source: &str) -> Result<Tree, SyntaxError> {
                 comments.push(start..end);
                 continue;
             }
-            Event::Scalar(value, style, anchor, tag) => Node {
-                kind: NodeKind::Scalar {
-                    value: value.into_owned(),
-                    style: style.into(),
-                },
-                span: start..end,
-                decorated: anchor != 0 || tag.is_some(),
-            },
+            Event::Scalar(value, style, anchor, tag) => {
+                let style = ScalarStyle::from(style);
+                // The parser ends block scalars after the indentation of the
+                // following line; end them after their last line break instead.
+                let end = match style {
+                    ScalarStyle::Literal | ScalarStyle::Folded => {
+                        start + source[start..end].trim_end_matches([' ', '\t']).len()
+                    }
+                    _ => end,
+                };
+                Node {
+                    kind: NodeKind::Scalar {
+                        value: value.into_owned(),
+                        style,
+                    },
+                    span: start..end,
+                    decorated: anchor != 0 || tag.is_some(),
+                }
+            }
             Event::Alias(_) => Node {
                 kind: NodeKind::Alias,
                 span: start..end,
