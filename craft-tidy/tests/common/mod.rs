@@ -11,9 +11,26 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use clap::Parser;
-use craft_tidy::checks::{Check, Context, Diagnostic};
+use craft_tidy::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use craft_tidy::cli::Cli;
+use craft_tidy::config::OptionValue;
 use tempfile::TempDir;
+
+/// Options declared by [`FakeCheck`].
+pub const FAKE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "extra",
+        kind: OptionKind::String,
+        default: "\"\"",
+        description: "Report an additional finding with this message.",
+    },
+    OptionSpec {
+        name: "ratio",
+        kind: OptionKind::Float,
+        default: "0.5",
+        description: "Unused; must be between 0 and 1.",
+    },
+];
 
 /// Path of the example configuration shipped in the repository.
 pub fn example_config() -> PathBuf {
@@ -44,8 +61,9 @@ pub fn cli(args: &[&str]) -> Cli {
 
 /// A check with predefined findings, for exercising the check framework.
 ///
-/// If the option `<name>.extra` is set to a string, an additional finding
-/// with that message is reported, which lets tests observe check options.
+/// It declares the options in [`FAKE_OPTIONS`]. If `extra` is set, an
+/// additional finding with that message is reported, which lets tests
+/// observe check options; `ratio` is validated to lie between 0 and 1.
 pub struct FakeCheck {
     pub name: &'static str,
     pub summary: &'static str,
@@ -84,6 +102,19 @@ impl Check for FakeCheck {
 
     fn explanation(&self) -> &'static str {
         "Reports predefined findings."
+    }
+
+    fn options(&self) -> &'static [OptionSpec] {
+        FAKE_OPTIONS
+    }
+
+    fn validate_option(&self, name: &str, value: &OptionValue) -> Result<(), String> {
+        match (name, value.as_f64()) {
+            ("ratio", Some(ratio)) if !(0.0..=1.0).contains(&ratio) => {
+                Err("must be between 0 and 1".to_owned())
+            }
+            _ => Ok(()),
+        }
     }
 
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic> {

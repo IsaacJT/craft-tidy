@@ -209,12 +209,94 @@ fn invalid_project_yaml_is_an_error() {
 fn warns_about_options_for_unknown_checks() {
     let dir = project(None);
     let path = dir.path().to_str().unwrap();
-    let run = execute(&registry(), &[path, "-o", "nope.x=1", "-o", "parts-a.x=1"]);
+    let run = execute(
+        &registry(),
+        &[
+            path,
+            "-o",
+            "nope.x=1",
+            "-o",
+            "nope.y=2",
+            "-o",
+            "parts-a.extra=hi",
+        ],
+    );
     assert!(run.result.is_ok());
     assert_eq!(
         run.err,
         "craft-tidy: warning: options given for unknown check 'nope'\n"
     );
+}
+
+// Check option validation
+
+fn option_error(args: &[&str]) -> String {
+    let dir = project(None);
+    let mut all = vec![dir.path().to_str().unwrap()];
+    all.extend_from_slice(args);
+    match execute(&registry(), &all).result {
+        Err(err @ Error::InvalidOption { .. }) => err.to_string(),
+        other => panic!("{args:?} should be an invalid option, got {other:?}"),
+    }
+}
+
+#[test]
+fn accepts_declared_options_of_the_right_type() {
+    let dir = project(None);
+    let path = dir.path().to_str().unwrap();
+    for option in [
+        "parts-a.extra=hello",
+        "parts-a.extra='42'",
+        "parts-a.ratio=0.25",
+        "parts-a.ratio=1",
+    ] {
+        let run = execute(&registry(), &[path, "-o", option]);
+        assert!(run.result.is_ok(), "{option}: {:?}", run.result);
+        assert_eq!(run.err, "", "{option}");
+    }
+}
+
+#[test]
+fn rejects_unknown_options_of_known_checks() {
+    assert_eq!(
+        option_error(&["-o", "parts-a.nope=1"]),
+        "invalid option 'parts-a.nope': unknown option (available: extra, ratio)"
+    );
+}
+
+#[test]
+fn rejects_options_of_the_wrong_type() {
+    assert_eq!(
+        option_error(&["-o", "parts-a.extra=42"]),
+        "invalid option 'parts-a.extra': expected a value of type string"
+    );
+    assert_eq!(
+        option_error(&["-o", "parts-a.ratio=high"]),
+        "invalid option 'parts-a.ratio': expected a value of type float"
+    );
+    assert_eq!(
+        option_error(&["-o", "parts-a.ratio=true"]),
+        "invalid option 'parts-a.ratio': expected a value of type float"
+    );
+}
+
+#[test]
+fn rejects_option_values_that_fail_check_validation() {
+    assert_eq!(
+        option_error(&["-o", "parts-a.ratio=1.5"]),
+        "invalid option 'parts-a.ratio': must be between 0 and 1"
+    );
+}
+
+#[test]
+fn options_from_the_config_file_are_validated() {
+    let dir = project(Some("check-options:\n  parts-a:\n    extra: 3\n"));
+    let run = execute(
+        &registry(),
+        &[dir.path().to_str().unwrap(), "--dump-config"],
+    );
+    assert!(matches!(run.result, Err(Error::InvalidOption { .. })));
+    assert_eq!(run.out, "");
 }
 
 // Actions
@@ -228,13 +310,13 @@ fn dump_config_prints_effective_settings() {
             dir.path().to_str().unwrap(),
             "--dump-config",
             "-o",
-            "parts-a.x=1",
+            "parts-a.extra=hi",
         ],
     );
     assert_eq!(run.result.unwrap(), Status::Success);
     assert_eq!(
         run.out,
-        "checks: \"*,-parts-*\"\nwarnings-as-errors: \"\"\ncheck-options:\n  parts-a:\n    x: 1\n"
+        "checks: \"*,-parts-*\"\nwarnings-as-errors: \"\"\ncheck-options:\n  parts-a:\n    extra: hi\n"
     );
     assert_eq!(run.err, "");
 }
@@ -288,8 +370,42 @@ fn explain_describes_a_check() {
     assert_eq!(run.result.unwrap(), Status::Success);
     assert_eq!(
         run.out,
-        "parts-a: A fake check\n\nReports predefined findings.\n"
+        "parts-a: A fake check\n\
+         \n\
+         Reports predefined findings.\n\
+         \n\
+         Options:\n  \
+           extra (string, default: \"\")\n      \
+             Report an additional finding with this message.\n  \
+           ratio (float, default: 0.5)\n      \
+             Unused; must be between 0 and 1.\n"
     );
+}
+
+#[test]
+fn explain_omits_options_section_for_checks_without_options() {
+    struct Bare;
+    impl Check for Bare {
+        fn name(&self) -> &'static str {
+            "bare-check"
+        }
+        fn summary(&self) -> &'static str {
+            "No options"
+        }
+        fn explanation(&self) -> &'static str {
+            "Has no options."
+        }
+        fn run(&self, _: &craft_tidy::checks::Context<'_>) -> Vec<craft_tidy::checks::Diagnostic> {
+            Vec::new()
+        }
+    }
+    let dir = project(None);
+    let registry: Vec<Box<dyn Check>> = vec![Box::new(Bare)];
+    let run = execute(
+        &registry,
+        &[dir.path().to_str().unwrap(), "--explain", "bare-check"],
+    );
+    assert_eq!(run.out, "bare-check: No options\n\nHas no options.\n");
 }
 
 #[test]

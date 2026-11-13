@@ -242,6 +242,24 @@ fn check_options_get_and_set() {
 }
 
 #[test]
+fn check_options_iterate_sorted_by_check_and_option() {
+    let mut opts = CheckOptions::default();
+    assert_eq!(opts.iter().count(), 0);
+    opts.set("b", "y", int(1));
+    opts.set("a", "z", int(2));
+    opts.set("a", "x", int(3));
+    let all: Vec<_> = opts.iter().collect();
+    assert_eq!(
+        all,
+        [
+            ("a", "x", &int(3)),
+            ("a", "z", &int(2)),
+            ("b", "y", &int(1))
+        ]
+    );
+}
+
+#[test]
 fn option_value_parse_uses_yaml_scalar_types() {
     assert_eq!(OptionValue::parse("79"), int(79));
     assert_eq!(OptionValue::parse("-3"), int(-3));

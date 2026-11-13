@@ -35,14 +35,12 @@ pub fn run_with_checks(
 ) -> Result<Status, Error> {
     let settings = resolve_settings(cli)?;
 
-    for name in settings.check_options.checks() {
-        if !registry.iter().any(|check| check.name() == name) {
-            writeln!(
-                err,
-                "craft-tidy: warning: options given for unknown check '{name}'"
-            )
-            .map_err(Error::Output)?;
-        }
+    for name in checks::validate_options(registry, &settings.check_options)? {
+        writeln!(
+            err,
+            "craft-tidy: warning: options given for unknown check '{name}'"
+        )
+        .map_err(Error::Output)?;
     }
 
     if cli.dump_config {
@@ -63,14 +61,7 @@ pub fn run_with_checks(
             .iter()
             .find(|check| check.name() == name)
             .ok_or_else(|| Error::UnknownCheck(name.clone()))?;
-        writeln!(
-            out,
-            "{}: {}\n\n{}",
-            check.name(),
-            check.summary(),
-            check.explanation()
-        )
-        .map_err(Error::Output)?;
+        explain(check.as_ref(), out).map_err(Error::Output)?;
         return Ok(Status::Success);
     }
 
@@ -135,6 +126,27 @@ fn search_start(path: &Path) -> PathBuf {
     } else {
         path.to_owned()
     }
+}
+
+fn explain(check: &dyn Check, out: &mut dyn Write) -> std::io::Result<()> {
+    writeln!(
+        out,
+        "{}: {}\n\n{}",
+        check.name(),
+        check.summary(),
+        check.explanation()
+    )?;
+    if !check.options().is_empty() {
+        writeln!(out, "\nOptions:")?;
+        for spec in check.options() {
+            writeln!(
+                out,
+                "  {} ({}, default: {})\n      {}",
+                spec.name, spec.kind, spec.default, spec.description
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn list_checks(enabled: &[&dyn Check], out: &mut dyn Write) -> std::io::Result<()> {

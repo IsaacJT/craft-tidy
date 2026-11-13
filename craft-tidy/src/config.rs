@@ -137,6 +137,15 @@ impl CheckOptions {
         self.0.keys().map(String::as_str)
     }
 
+    /// All options as `(check, option, value)`, sorted by check and option.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str, &OptionValue)> {
+        self.0.iter().flat_map(|(check, options)| {
+            options
+                .iter()
+                .map(move |(name, value)| (check.as_str(), name.as_str(), value))
+        })
+    }
+
     /// Merges `other` into `self`; options in `other` take precedence.
     pub fn merge(&mut self, other: CheckOptions) {
         for (check, options) in other.0 {

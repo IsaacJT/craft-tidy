@@ -4,8 +4,9 @@
 
 mod common;
 
-use craft_tidy::checks::{self, Check, Diagnostic, Severity};
-use craft_tidy::config::{OptionValue, Settings};
+use craft_tidy::checks::{self, Check, Diagnostic, OptionKind, Severity};
+use craft_tidy::config::{CheckOptions, OptionValue, Settings};
+use craft_tidy::error::Error;
 use craft_tidy::project::Project;
 
 use common::FakeCheck;
@@ -65,6 +66,133 @@ fn severities_display_in_lowercase_and_are_ordered() {
     assert!(Severity::Warning < Severity::Error);
 }
 
+// Option specifications
+
+#[test]
+fn option_kinds_accept_matching_values() {
+    use OptionKind::*;
+    let cases = [
+        (Bool, OptionValue::Bool(true)),
+        (Integer, OptionValue::Integer(3)),
+        (Float, OptionValue::Float(0.5)),
+        (Float, OptionValue::Integer(3)),
+        (String, OptionValue::String("s".into())),
+    ];
+    for (kind, value) in cases {
+        assert!(kind.accepts(&value), "{kind} should accept {value:?}");
+    }
+}
+
+#[test]
+fn option_kinds_reject_other_values() {
+    use OptionKind::*;
+    let cases = [
+        (Bool, OptionValue::Integer(1)),
+        (Bool, OptionValue::String("true".into())),
+        (Integer, OptionValue::Float(1.0)),
+        (Integer, OptionValue::String("1".into())),
+        (Float, OptionValue::Bool(false)),
+        (String, OptionValue::Integer(1)),
+        (String, OptionValue::Bool(true)),
+    ];
+    for (kind, value) in cases {
+        assert!(!kind.accepts(&value), "{kind} should reject {value:?}");
+    }
+}
+
+#[test]
+fn option_kinds_display_their_names() {
+    let names: Vec<_> = [
+        OptionKind::Bool,
+        OptionKind::Integer,
+        OptionKind::Float,
+        OptionKind::String,
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    assert_eq!(names, ["boolean", "integer", "float", "string"]);
+}
+
+#[test]
+fn validate_options_accepts_valid_options_and_lists_unknown_checks() {
+    let registry = registry();
+    let mut options = CheckOptions::default();
+    assert_eq!(
+        checks::validate_options(&registry, &options).unwrap(),
+        Vec::<&str>::new()
+    );
+
+    options.set("parts-a", "extra", OptionValue::String("x".into()));
+    options.set("parts-b", "ratio", OptionValue::Integer(1));
+    options.set("zzz-unknown", "a", OptionValue::Bool(true));
+    options.set("zzz-unknown", "b", OptionValue::Bool(true));
+    options.set("aaa-unknown", "a", OptionValue::Bool(true));
+    assert_eq!(
+        checks::validate_options(&registry, &options).unwrap(),
+        ["aaa-unknown", "zzz-unknown"]
+    );
+}
+
+#[test]
+fn validate_options_rejects_invalid_options() {
+    let registry = registry();
+    for (name, value, message) in [
+        (
+            "nope",
+            OptionValue::Integer(1),
+            "unknown option (available: extra, ratio)",
+        ),
+        (
+            "extra",
+            OptionValue::Integer(1),
+            "expected a value of type string",
+        ),
+        ("ratio", OptionValue::Float(2.0), "must be between 0 and 1"),
+    ] {
+        let mut options = CheckOptions::default();
+        options.set("parts-a", name, value);
+        match checks::validate_options(&registry, &options) {
+            Err(Error::InvalidOption {
+                check,
+                option,
+                message: actual,
+            }) => {
+                assert_eq!((check.as_str(), option.as_str()), ("parts-a", name));
+                assert_eq!(actual, message);
+            }
+            other => panic!("{name} should be rejected, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn validate_options_rejects_options_for_checks_without_options() {
+    struct Bare;
+    impl Check for Bare {
+        fn name(&self) -> &'static str {
+            "bare-check"
+        }
+        fn summary(&self) -> &'static str {
+            ""
+        }
+        fn explanation(&self) -> &'static str {
+            ""
+        }
+        fn run(&self, _: &craft_tidy::checks::Context<'_>) -> Vec<Diagnostic> {
+            Vec::new()
+        }
+    }
+    let registry: Vec<Box<dyn Check>> = vec![Box::new(Bare)];
+    let mut options = CheckOptions::default();
+    options.set("bare-check", "x", OptionValue::Bool(true));
+    let err = checks::validate_options(&registry, &options).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "invalid option 'bare-check.x': the check has no options"
+    );
+}
+
 // Registry
 
 #[test]
@@ -89,6 +217,30 @@ fn registry_is_sorted_with_unique_valid_names() {
             !check.explanation().is_empty(),
             "{name} needs an explanation"
         );
+        for spec in check.options() {
+            let option = format!("{name}.{}", spec.name);
+            assert!(
+                !spec.name.is_empty()
+                    && spec
+                        .name
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
+                "{option} must be kebab-case"
+            );
+            assert!(!spec.description.is_empty(), "{option} needs a description");
+            let default = OptionValue::parse(spec.default);
+            assert!(
+                spec.kind.accepts(&default),
+                "{option}: default {:?} is not a {}",
+                spec.default,
+                spec.kind
+            );
+            assert_eq!(
+                check.validate_option(spec.name, &default),
+                Ok(()),
+                "{option}: default must be valid"
+            );
+        }
     }
 }
 

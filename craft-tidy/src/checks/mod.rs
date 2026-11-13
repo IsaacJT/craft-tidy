@@ -4,7 +4,8 @@
 
 use std::fmt;
 
-use crate::config::{CheckOptions, Settings};
+use crate::config::{CheckOptions, OptionValue, Settings};
+use crate::error::Error;
 use crate::project::Project;
 
 /// Severity of a reported finding.
@@ -58,6 +59,50 @@ pub struct Context<'a> {
     pub options: &'a CheckOptions,
 }
 
+/// The type of a check option's value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionKind {
+    Bool,
+    Integer,
+    /// A float; integers are accepted too.
+    Float,
+    String,
+}
+
+impl OptionKind {
+    /// Whether `value` has this type.
+    pub fn accepts(self, value: &OptionValue) -> bool {
+        matches!(
+            (self, value),
+            (Self::Bool, OptionValue::Bool(_))
+                | (Self::Integer, OptionValue::Integer(_))
+                | (Self::Float, OptionValue::Float(_) | OptionValue::Integer(_))
+                | (Self::String, OptionValue::String(_))
+        )
+    }
+}
+
+impl fmt::Display for OptionKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Bool => "boolean",
+            Self::Integer => "integer",
+            Self::Float => "float",
+            Self::String => "string",
+        })
+    }
+}
+
+/// Describes an option accepted by a check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionSpec {
+    pub name: &'static str,
+    pub kind: OptionKind,
+    /// The default value, as shown by `--explain`.
+    pub default: &'static str,
+    pub description: &'static str,
+}
+
 /// A lint check.
 ///
 /// Check names are kebab-case and prefixed with their category, e.g.
@@ -68,6 +113,16 @@ pub trait Check {
     fn summary(&self) -> &'static str;
     /// Detailed description, shown by `--explain`.
     fn explanation(&self) -> &'static str;
+    /// Options accepted by the check. Values of other options, or of the
+    /// wrong type, are rejected before any check runs.
+    fn options(&self) -> &'static [OptionSpec] {
+        &[]
+    }
+    /// Validates an option value whose type is already known to be correct,
+    /// returning a description of the problem if it is invalid.
+    fn validate_option(&self, _name: &str, _value: &OptionValue) -> Result<(), String> {
+        Ok(())
+    }
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic>;
 }
 
@@ -76,6 +131,43 @@ pub fn registry() -> Vec<Box<dyn Check>> {
     let mut checks: Vec<Box<dyn Check>> = Vec::new();
     checks.sort_by_key(|check| check.name());
     checks
+}
+
+/// Validates `options` against the options declared by the checks in
+/// `registry`. Options of unknown checks are not an error, since the check
+/// may come from a newer version, but each such check is returned so that
+/// it can be reported.
+pub fn validate_options<'a>(
+    registry: &[Box<dyn Check>],
+    options: &'a CheckOptions,
+) -> Result<Vec<&'a str>, Error> {
+    let mut unknown_checks = Vec::new();
+    for (check_name, name, value) in options.iter() {
+        let Some(check) = registry.iter().find(|check| check.name() == check_name) else {
+            if unknown_checks.last() != Some(&check_name) {
+                unknown_checks.push(check_name);
+            }
+            continue;
+        };
+        let invalid = |message: String| Error::InvalidOption {
+            check: check_name.to_owned(),
+            option: name.to_owned(),
+            message,
+        };
+        let Some(spec) = check.options().iter().find(|spec| spec.name == name) else {
+            let known: Vec<_> = check.options().iter().map(|spec| spec.name).collect();
+            return Err(invalid(if known.is_empty() {
+                "the check has no options".to_owned()
+            } else {
+                format!("unknown option (available: {})", known.join(", "))
+            }));
+        };
+        if !spec.kind.accepts(value) {
+            return Err(invalid(format!("expected a value of type {}", spec.kind)));
+        }
+        check.validate_option(name, value).map_err(invalid)?;
+    }
+    Ok(unknown_checks)
 }
 
 /// Checks from `checks` that are enabled by `settings`.

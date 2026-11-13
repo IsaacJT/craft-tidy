@@ -97,8 +97,12 @@ Guidelines:
 2. Implement the `Check` trait from `craft-tidy/src/checks/mod.rs` in a new
    module under `craft-tidy/src/checks/`. `summary()` is shown by
    `--list-checks` and `explanation()` by `--explain`.
-3. Read check options with `ctx.options.get(self.name(), "option-name")` and
-   fall back to a sensible default when an option is not set.
+3. Declare the check's options in `options()` as `OptionSpec`s (name, type,
+   default, description); craft-tidy rejects any other option and values of
+   the wrong type. Implement `validate_option()` for further constraints,
+   such as ranges. Read options with
+   `ctx.options.get(self.name(), "option-name")`, falling back to the
+   declared default when an option is not set.
 4. Report findings with `Diagnostic::warning(...)`, adding a location with
    `.at(line, column)` where possible. Severity is promoted to error by the
    runner according to `warnings-as-errors`; checks should not do this

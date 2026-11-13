@@ -73,6 +73,12 @@ are implemented yet).
 - Implement `Check`, register in `checks::registry()`, read options via
   `ctx.options.get(name, key)`, emit `Diagnostic::warning(..)`. The runner
   applies `warnings-as-errors`.
+- Declare every option in `Check::options()` (`OptionSpec`: name, `OptionKind`,
+  default shown by `--explain`, description) and put extra constraints in
+  `Check::validate_option()`. `checks::validate_options()` runs before any
+  action: unknown options / wrong types / failed validation of a known check
+  → `Error::InvalidOption` (exit 2); options of unknown checks → warning.
+  `tests/checks.rs` verifies declared defaults are valid.
 
 ## Testing
 

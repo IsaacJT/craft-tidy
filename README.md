@@ -50,7 +50,7 @@ Findings are printed one per line as
 | `--no-config`                          | Do not read any configuration file                                  |
 | `--dump-config`                        | Print the effective configuration and exit                          |
 | `--list-checks`                        | List the enabled checks and exit (add `--checks='*'` to list all)   |
-| `--explain CHECK`                      | Describe a check and exit                                           |
+| `--explain CHECK`                      | Describe a check and its options, and exit                          |
 
 Check option values are interpreted as YAML scalars: `79` is an integer,
 `true` a boolean and `"'79'"` (quoted) a string.

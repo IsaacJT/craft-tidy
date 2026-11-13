@@ -22,6 +22,12 @@ pub enum Error {
     Syntax { path: PathBuf, error: SyntaxError },
     /// A check name given by the user does not exist.
     UnknownCheck(String),
+    /// A check option is not accepted by its check.
+    InvalidOption {
+        check: String,
+        option: String,
+        message: String,
+    },
 }
 
 impl fmt::Display for Error {
@@ -46,6 +52,11 @@ impl fmt::Display for Error {
                 error.column,
                 error.message
             ),
+            Self::InvalidOption {
+                check,
+                option,
+                message,
+            } => write!(f, "invalid option '{check}.{option}': {message}"),
             Self::UnknownCheck(name) => write!(
                 f,
                 "unknown check '{name}' (run `craft-tidy --list-checks --checks='*'` to list all checks)"

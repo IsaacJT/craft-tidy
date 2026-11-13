@@ -48,15 +48,14 @@ fn example_documents_every_setting() {
 }
 
 #[test]
-fn example_only_configures_existing_checks() {
+fn example_only_sets_valid_options_of_existing_checks() {
     let settings = Settings::from_file(&example_config()).unwrap();
-    let registry = checks::registry();
-    for name in settings.check_options.checks() {
-        assert!(
-            registry.iter().any(|check| check.name() == name),
-            "examples/.craft-tidy sets options for unknown check '{name}'"
-        );
-    }
+    let unknown = checks::validate_options(&checks::registry(), &settings.check_options)
+        .unwrap_or_else(|err| panic!("examples/.craft-tidy: {err}"));
+    assert!(
+        unknown.is_empty(),
+        "examples/.craft-tidy sets options for unknown checks: {unknown:?}"
+    );
 }
 
 #[test]
