@@ -13,6 +13,8 @@ use std::fmt;
 use crate::config::{CheckOptions, OptionValue, Settings};
 use crate::craft::Craft;
 use crate::error::Error;
+use crate::fix::{self, Edit};
+use crate::nolint::Nolint;
 use crate::project::Project;
 use crate::yaml::Document;
 
@@ -79,6 +81,32 @@ impl Diagnostic {
 pub struct Context<'a> {
     pub project: &'a Project,
     pub options: &'a CheckOptions,
+    /// The `NOLINT` comments of the project file.
+    pub nolint: &'a Nolint,
+}
+
+impl Context<'_> {
+    /// Applies `edits` to the project file like [`fix::apply_edits`], except
+    /// for edits touching a line where `check` is suppressed by a `NOLINT`
+    /// comment. Checks must use this rather than `fix::apply_edits` so that
+    /// `--fix` leaves suppressed lines alone.
+    pub fn apply_edits<T>(
+        &self,
+        check: &str,
+        edits: Vec<(Edit, T)>,
+        accept: impl FnMut(&Document, &Document, &T) -> bool,
+    ) -> Option<Document> {
+        let document = &self.project.document;
+        let edits = edits
+            .into_iter()
+            .filter(|(edit, _)| {
+                let first = document.line_index(edit.range.start);
+                let last = document.line_index(edit.range.end);
+                !self.nolint.suppresses_any(check, first..=last)
+            })
+            .collect();
+        fix::apply_edits(document, edits, accept)
+    }
 }
 
 /// The type of a check option's value.
@@ -231,15 +259,22 @@ pub fn applies_to(check: &dyn Check, craft: Option<Craft>) -> bool {
 /// Runs those of `checks` that apply to `project` and applies
 /// `warnings-as-errors`.
 pub fn run(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Vec<Diagnostic> {
+    let nolint = Nolint::parse(&project.document);
     let ctx = Context {
         project,
         options: &settings.check_options,
+        nolint: &nolint,
     };
     let mut diagnostics: Vec<Diagnostic> = checks
         .iter()
         .filter(|check| applies_to(**check, project.craft))
         .flat_map(|check| check.run(&ctx))
+        .filter(|diagnostic| match diagnostic.location {
+            Some((line, _)) => !nolint.suppresses(diagnostic.check, line),
+            None => true,
+        })
         .collect();
+    diagnostics.extend(nolint.problems().iter().cloned());
     for diagnostic in &mut diagnostics {
         if settings.warnings_as_errors.matches(diagnostic.check) {
             diagnostic.severity = Severity::Error;
@@ -263,9 +298,12 @@ pub fn fix(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Opt
             .iter()
             .filter(|check| applies_to(**check, project.craft))
         {
+            // Edits move lines, so the comments are found again each time.
+            let nolint = Nolint::parse(&current.document);
             let ctx = Context {
                 project: &current,
                 options: &settings.check_options,
+                nolint: &nolint,
             };
             if let Some(document) = check.fix(&ctx)
                 && document.source() != current.source()

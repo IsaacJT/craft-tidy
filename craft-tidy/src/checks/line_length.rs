@@ -9,6 +9,7 @@ use std::ops::Range;
 use crate::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use crate::config::OptionValue;
 use crate::fix::{Edit, apply_edits};
+use crate::nolint;
 use crate::yaml::{CollectionStyle, Document, Node, NodeKind, ScalarStyle};
 
 const NAME: &str = "style-line-length";
@@ -21,6 +22,8 @@ const MIN_WRAP_WIDTH: usize = 20;
 const NO_BREAK: &str = "it has no space at which it can be broken safely, \
                         such as in a long URL or word";
 const TRAILING_COMMENT: &str = "comments after other content are not wrapped";
+const NOLINT_COMMENT: &str = "NOLINT comments must stay on their line, so they are not wrapped \
+                              or moved";
 
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "max-length",
@@ -108,7 +111,7 @@ impl Check for LineLength {
         let document = &ctx.project.document;
         let edits = Wrapper::new(document, max_length(ctx)).edits();
         let edits = edits.into_iter().map(|edit| (edit, ())).collect();
-        apply_edits(document, edits, |before, after, _| {
+        ctx.apply_edits(NAME, edits, |before, after, _| {
             before.value() == after.value()
         })
     }
@@ -338,6 +341,9 @@ impl<'a> Wrapper<'a> {
         let Some((_, tail)) = self.tail(node.span.end) else {
             return self.skip(span, "it is followed by other content on the same line");
         };
+        if self.has_nolint(tail.clone()) {
+            return self.skip(span, NOLINT_COMMENT);
+        }
 
         let text = &self.source()[node.span.start..tail.end];
         let breaks = break_points(&self.source()[node.span.clone()], style);
@@ -470,6 +476,13 @@ impl<'a> Wrapper<'a> {
         edits.push(Edit::new(colon + 1..tail_range.end, replacement));
     }
 
+    /// Whether a `NOLINT` comment starts in the byte `range`.
+    fn has_nolint(&self, range: Range<usize>) -> bool {
+        self.document.comments().iter().any(|comment| {
+            range.contains(&comment.start) && nolint::is_directive(self.document, comment.start)
+        })
+    }
+
     /// Re-wraps long comments that are alone on their line and look like
     /// prose (`# text`), keeping their indentation.
     fn wrap_comments(&self, edits: &mut Vec<Edit>) {
@@ -486,6 +499,10 @@ impl<'a> Wrapper<'a> {
             }
             if !prefix.trim().is_empty() {
                 self.skip(range.clone(), TRAILING_COMMENT);
+                continue;
+            }
+            if nolint::is_directive(self.document, range.start) {
+                self.skip(range.clone(), NOLINT_COMMENT);
                 continue;
             }
             if !prose {

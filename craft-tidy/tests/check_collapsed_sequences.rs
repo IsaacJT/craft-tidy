@@ -368,3 +368,18 @@ fn sorting_and_collapsing_the_same_list_agree() {
     let fixed = checks::fix(&enabled, &project("plugs:\n  - network\n  - home\n"), &all);
     assert_eq!(fixed.unwrap().source(), "plugs: [home, network]\n");
 }
+
+#[test]
+fn suppressed_sequences_are_neither_reported_nor_rewritten() {
+    let source =
+        "# NOLINTNEXTLINE(style-collapsed-sequences)\nplugs: [a, b, c]\nslots: [a, b, c]\n";
+    let lines: Vec<_> = findings(source).into_iter().map(|f| f.0).collect();
+    assert_eq!(lines, [3]);
+    assert_eq!(
+        fixed(source).as_deref(),
+        Some(
+            "# NOLINTNEXTLINE(style-collapsed-sequences)\nplugs: [a, b, c]\nslots:\n  - a\n  \
+             - b\n  - c\n"
+        )
+    );
+}

@@ -310,3 +310,14 @@ fn has_no_fix() {
     let project = Project::new("snapcraft.yaml", source).unwrap();
     assert!(checks::fix(&checks::enabled(&registry, &settings), &project, &settings).is_none());
 }
+
+#[test]
+fn findings_can_be_suppressed() {
+    let parts = "  a:\n    organize:\n      # NOLINTNEXTLINE(snapcraft-components)\n      \
+                 la: (component/translatons)\n      dbg: (component/debug-symbols)\n";
+    // translations is unused: the typo is suppressed, but not that.
+    assert_eq!(
+        messages(&project(parts)),
+        ["component 'translations' is defined but no part puts files in it, so it would be empty"]
+    );
+}

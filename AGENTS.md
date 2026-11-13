@@ -29,6 +29,14 @@ check framework and `--fix` exist. Implemented checks:
   - `src/config.rs` - `Settings`, `CheckOptions`, `OptionValue`, `.craft-tidy`
     parsing/serialization and upward discovery
   - `src/glob.rs` - `GlobList`, clang-tidy style check globs
+  - `src/nolint.rs` - `Nolint::parse(document)`: `# NOLINT`,
+    `# NOLINTNEXTLINE`, `# NOLINTBEGIN`/`# NOLINTEND`, each optionally
+    with `(globs)` (no `-` globs, not empty) and trailing text; only real
+    YAML comments, keyword at the start, case-sensitive. END matches the
+    latest BEGIN with the same glob set. Mistakes (and unclosed BEGINs,
+    which then suppress nothing) are `Diagnostic`s named
+    `craft-tidy-nolint` (`nolint::NAME`). `suppresses(check, line)`,
+    `is_directive()`
   - `src/craft.rs` - `Craft` enum: tool names, `project_file_locations()`
     (each tool's search order; only Snapcraft has more than `<name>.yaml`)
     and `from_path()` (tool from the file name)
@@ -110,7 +118,7 @@ check framework and `--fix` exist. Implemented checks:
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
-  `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`;
+  `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`, `nolint`;
   projects go in `$WORK` (`/root/work`); `spread/.extension` is Snapcraft's
   template plus a cloud-init wait
 - `README.md` - user-facing introduction, usage and configuration reference
@@ -177,11 +185,21 @@ including tests, docs, `examples/.craft-tidy` and the spread tasks.
 
 ## Fixes
 
+- `NOLINT` comments: `checks::run` drops findings whose line is
+  suppressed for their check (findings without a location are never
+  suppressed) and appends the `craft-tidy-nolint` problems regardless of
+  the enabled checks; `checks::fix` re-parses the comments on every pass,
+  as edits move lines, and passes them to checks in `Context::nolint`.
+  `style-line-length` never wraps a `NOLINT` comment or a value followed by
+  one, since that would move the directive to another line.
 - With `fix` enabled, `app` runs the checks, calls `checks::fix()`, writes
   the file only if it changed, re-runs the checks and reports what remains
   (summary on stderr). Exit status reflects the remaining findings.
 - A check's `fix()` must build `fix::Edit`s on the original text (never
-  regenerate the file) and use `fix::apply_edits` with a closure verifying
+  regenerate the file) and apply them with `ctx.apply_edits(NAME, …)`
+  (which drops edits touching lines where `NOLINT` suppresses the check,
+  then calls `fix::apply_edits`; never call `fix::apply_edits` directly in
+  a fix) with a closure verifying
   `Document::value()` before/after: pure reformatting must leave the value
   identical; data changes (e.g. reordering) must equal the expected value
   exactly. When unsure whether an edit is safe for Snapcraft's YAML parser
@@ -196,7 +214,7 @@ including tests, docs, `examples/.craft-tidy` and the spread tasks.
 ## Testing
 
 - All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`,
-  `config.rs`, `cli.rs`, `craft.rs`, `project.rs`, `yaml.rs`, `fix.rs`, `checks.rs`,
+  `nolint.rs`, `config.rs`, `cli.rs`, `craft.rs`, `project.rs`, `yaml.rs`, `fix.rs`, `checks.rs`,
   `app.rs`), plus
   `example.rs` (the example config) and `binary.rs` (end-to-end runs of the
   compiled binary). Shared helpers are in `tests/common/mod.rs`, included

@@ -648,3 +648,45 @@ fn other_long_lines_get_a_generic_reason() {
         [(1, Some("it cannot be wrapped automatically".to_owned()))]
     );
 }
+
+// NOLINT comments
+
+#[test]
+fn nolint_comments_are_never_wrapped_or_moved() {
+    // A long NOLINT comment on its own line stays as it is.
+    let comment = format!("# NOLINTNEXTLINE(style-sorted-lists) {}", long_words(8));
+    let source = format!("{comment}\na: [b, a]\n");
+    assert_eq!(fixed(&source), None);
+    assert_eq!(
+        reasons_with(&source, None),
+        [(
+            1,
+            Some(
+                "NOLINT comments must stay on their line, so they are not wrapped or moved"
+                    .to_owned()
+            )
+        )]
+    );
+    // Wrapping a value would move its trailing NOLINT comment to another
+    // line, where it would suppress the wrong findings.
+    let source = format!("summary: {} # NOLINT(style-sorted-lists)\n", long_words(8));
+    assert_eq!(fixed(&source), None);
+}
+
+#[test]
+fn suppressed_lines_are_neither_reported_nor_wrapped() {
+    let source = format!("summary: {} # NOLINT(style-line-length)\n", long_words(12));
+    assert!(findings(&source).is_empty());
+    assert_eq!(fixed(&source), None);
+    let source = format!(
+        "# NOLINTNEXTLINE(style-*)\nsummary: {0}\ndescription: {0}\n",
+        long_words(12)
+    );
+    let lines: Vec<_> = findings(&source).into_iter().map(|f| f.0).collect();
+    assert_eq!(lines, [3]);
+    let fixed = fixed(&source).unwrap();
+    assert!(fixed.starts_with(&format!(
+        "# NOLINTNEXTLINE(style-*)\nsummary: {}\ndescription:",
+        long_words(12)
+    )));
+}

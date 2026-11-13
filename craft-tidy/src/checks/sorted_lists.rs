@@ -8,7 +8,7 @@ use std::ops::Range;
 
 use crate::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use crate::config::OptionValue;
-use crate::fix::{Edit, apply_edits};
+use crate::fix::Edit;
 use crate::glob::GlobList;
 use crate::yaml::{CollectionStyle, Document, Node, NodeKind, Value};
 
@@ -93,12 +93,11 @@ impl Check for SortedLists {
     }
 
     fn fix(&self, ctx: &Context<'_>) -> Option<Document> {
-        let document = &ctx.project.document;
         let edits = unsorted_lists(ctx)
             .into_iter()
             .filter_map(|list| list.edit.map(|edit| (edit, (list.path, list.order))))
             .collect();
-        apply_edits(document, edits, |before, after, (path, order)| {
+        ctx.apply_edits(NAME, edits, |before, after, (path, order)| {
             let Some(mut expected) = before.value() else {
                 return false;
             };

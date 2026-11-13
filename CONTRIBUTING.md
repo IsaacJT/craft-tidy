@@ -39,7 +39,7 @@ end to end, under strict confinement. There is one task per craft tool
 `debcraft`, `imagecraft`, `rockcraft`, `snapcraft`: where the project file
 is looked for, findings, `--fix`, and which checks apply), plus tasks for
 informational options (`cli`), `--fix` (`fix`), configuration files
-(`config`) and error handling (`errors`). Run it from
+(`config`), error handling (`errors`) and `NOLINT` comments (`nolint`). Run it from
 the repository root (it needs LXD, as `snapcraft pack` does):
 
 ```sh
@@ -86,6 +86,7 @@ The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
 | `cli`         | Command line definition (clap derive) and flag parsing           |
 | `config`      | `Settings` layers, `.craft-tidy` parsing, merging and discovery  |
 | `glob`        | clang-tidy style check selection globs                           |
+| `nolint`      | Parsing `NOLINT` comments that suppress findings                 |
 | `craft`       | The supported craft tools and their project file locations       |
 | `project`     | Locating, loading and parsing craft project files                |
 | `yaml`        | YAML document tree with source positions, and the `Value` model  |
@@ -103,6 +104,7 @@ module through the crate's public API:
 | File               | Covers                                                          |
 | ------------------ | --------------------------------------------------------------- |
 | `tests/glob.rs`    | `glob`: parsing, matching, precedence, YAML (de)serialization   |
+| `tests/nolint.rs`  | `nolint`: directives, check lists, mistakes in comments         |
 | `tests/config.rs`  | `config`: parsing, validation, merging, serialization, discovery |
 | `tests/cli.rs`     | `cli`: argument parsing and validation                          |
 | `tests/craft.rs`   | `craft`: tool names, project file locations, file recognition   |
@@ -160,6 +162,8 @@ Guidelines:
    after `--fix`.
 5. If the problems can be fixed automatically, implement `fix()`. Express
    the fix as `fix::Edit`s of the source text and apply them with
+   `ctx.apply_edits(NAME, …)`, which skips edits on lines where `NOLINT`
+   comments suppress the check and otherwise works like
    `fix::apply_edits`, passing a verification closure that compares the
    data before and after each edit (`Document::value()`): edits that only
    reformat must leave it unchanged, and edits that change data must

@@ -525,3 +525,61 @@ fn wrongly_typed_options_are_ignored_by_typed_accessors() {
     );
     assert!(diagnostics.is_empty());
 }
+
+// NOLINT comments
+
+#[test]
+fn nolint_comments_suppress_findings() {
+    let source = "a: old # NOLINT\n# NOLINTNEXTLINE(parts-b)\nb: old\nc: old\n";
+    let project = Project::new("snapcraft.yaml", source).unwrap();
+    let a = FakeCheck::new("parts-a").replacing("old", "new");
+    let b = FakeCheck::new("parts-b").replacing("old", "new");
+    let checks: [&dyn Check; 2] = [&a, &b];
+    let found: Vec<_> = checks::run(&checks, &project, &settings("", ""))
+        .into_iter()
+        .map(|d| (d.check, d.location.unwrap().0))
+        .collect();
+    assert_eq!(found, [("parts-a", 3), ("parts-a", 4), ("parts-b", 4)]);
+}
+
+#[test]
+fn findings_without_a_location_cannot_be_suppressed() {
+    let project = Project::new("snapcraft.yaml", "# NOLINT\na: 1 # NOLINT\n").unwrap();
+    let check = FakeCheck::new("parts-a").finding("whole file", None);
+    let diagnostics = checks::run(&[&check], &project, &settings("", ""));
+    assert_eq!(
+        summary(&diagnostics),
+        [("parts-a", Severity::Warning, "whole file")]
+    );
+}
+
+#[test]
+fn mistakes_in_nolint_comments_are_reported() {
+    let project = Project::new("snapcraft.yaml", "a: 1 # NOLINT(\n").unwrap();
+    // Even without enabled checks, and promoted by warnings-as-errors.
+    let diagnostics = checks::run(&[], &project, &settings("", "craft-tidy-*"));
+    assert_eq!(
+        summary(&diagnostics),
+        [(
+            "craft-tidy-nolint",
+            Severity::Error,
+            "NOLINT has an unclosed '('"
+        )]
+    );
+}
+
+#[test]
+fn fixes_leave_suppressed_lines_alone() {
+    let source = "a: old # NOLINT(parts-a)\n# NOLINTBEGIN\nb: old\n# NOLINTEND\nc: old\n\
+                  d: old # NOLINT(parts-b)\n";
+    let project = Project::new("snapcraft.yaml", source).unwrap();
+    let check = FakeCheck::new("parts-a").replacing("old", "new");
+    let fixed = checks::fix(&[&check], &project, &settings("", "")).unwrap();
+    assert_eq!(
+        fixed.source(),
+        "a: old # NOLINT(parts-a)\n# NOLINTBEGIN\nb: old\n# NOLINTEND\nc: new\n\
+         d: new # NOLINT(parts-b)\n"
+    );
+    // Nothing is left to report.
+    assert!(checks::run(&[&check], &fixed, &settings("", "")).is_empty());
+}

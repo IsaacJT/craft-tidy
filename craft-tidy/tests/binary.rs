@@ -490,3 +490,41 @@ fn fix_reports_why_long_lines_cannot_be_wrapped() {
         stdout(&output)
     );
 }
+
+#[test]
+fn nolint_comments_suppress_findings_and_fixes() {
+    let dir = project(None);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let long = "word ".repeat(18);
+    let source = format!(
+        "name: test\n# NOLINTNEXTLINE(style-line-length)\nsummary: {long}\n\
+         description: {long}\nplugs: [b, a] # NOLINT\n# NOLINTEND\n"
+    );
+    fs::write(&file, &source).unwrap();
+    let args = ["--no-config", "--checks=-*,style-*"];
+
+    let output = craft_tidy(dir.path(), &args);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        stdout(&output),
+        "./snap/snapcraft.yaml:4:81: warning: line is 103 characters long, exceeding the limit \
+         of 80 [style-line-length]\n\
+         ./snap/snapcraft.yaml:6:3: warning: NOLINTEND has no matching NOLINTBEGIN before it \
+         [craft-tidy-nolint]\n"
+    );
+
+    let output = craft_tidy(dir.path(), &[&args[..], &["--fix"]].concat());
+    assert_eq!(output.status.code(), Some(0));
+    let fixed = fs::read_to_string(&file).unwrap();
+    assert!(fixed.contains(&format!("summary: {long}\n")), "{fixed}");
+    assert!(
+        !fixed.contains(&format!("description: {long}\n")),
+        "{fixed}"
+    );
+    assert!(fixed.contains("plugs: [b, a] # NOLINT\n"), "{fixed}");
+    assert_eq!(
+        stdout(&output),
+        "./snap/snapcraft.yaml:7:3: warning: NOLINTEND has no matching NOLINTBEGIN before it \
+         [craft-tidy-nolint]\n"
+    );
+}

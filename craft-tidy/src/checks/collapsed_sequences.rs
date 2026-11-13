@@ -105,7 +105,7 @@ impl Check for CollapsedSequences {
             .into_iter()
             .map(|change| (change.edit, ()))
             .collect();
-        apply_edits(&ctx.project.document, edits, |before, after, _| {
+        ctx.apply_edits(NAME, edits, |before, after, _| {
             before.value() == after.value()
         })
     }

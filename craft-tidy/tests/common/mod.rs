@@ -15,7 +15,7 @@ use craft_tidy::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use craft_tidy::cli::Cli;
 use craft_tidy::config::OptionValue;
 use craft_tidy::craft::Craft;
-use craft_tidy::fix::{Edit, apply_edits};
+use craft_tidy::fix::Edit;
 use craft_tidy::yaml::Document;
 use tempfile::TempDir;
 
@@ -226,6 +226,6 @@ impl Check for FakeCheck {
             .match_indices(word)
             .map(|(offset, _)| (Edit::new(offset..offset + word.len(), replacement), ()))
             .collect();
-        apply_edits(document, edits, |_, _, _| true)
+        ctx.apply_edits(self.name, edits, |_, _, _| true)
     }
 }

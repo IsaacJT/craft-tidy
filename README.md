@@ -118,6 +118,49 @@ snap/snapcraft.yaml:12:81: warning: line is 95 characters long, exceeding the li
 Only enabled checks fix problems, so `--checks` also limits what `--fix`
 changes.
 
+### Suppressing findings
+
+Findings can be suppressed with `NOLINT` comments in the project file, as
+with clang-tidy's `// NOLINT` comments, written as ordinary YAML comments:
+
+| Comment | Suppresses findings on |
+| ------- | ---------------------- |
+| `# NOLINT` | the comment's own line, whether it ends a line of YAML or is on a line of its own |
+| `# NOLINTNEXTLINE` | the line after the comment |
+| `# NOLINTBEGIN` … `# NOLINTEND` | every line from the `NOLINTBEGIN` comment to the `NOLINTEND` comment |
+
+By default every check is suppressed. To suppress only some checks, list
+them in parentheses directly after the keyword, separated by commas; globs
+work as in `--checks`. Any text may follow, such as the reason:
+
+```yaml
+# NOLINTNEXTLINE(style-line-length): the URL cannot be shortened
+source: https://example.com/a/very/long/url/that/cannot/be/broken/anywhere.tar.gz
+plugs: [network, home] # NOLINT(style-sorted-lists, style-collapsed-*)
+# NOLINTBEGIN(snapcraft-components)
+parts:
+  ...
+# NOLINTEND(snapcraft-components)
+```
+
+- A `NOLINTEND` closes the most recent `NOLINTBEGIN` with the same check
+  list (in any order). Ranges may nest and overlap.
+- A finding is suppressed if the line it is reported on (as printed) is
+  covered. Findings about the file as a whole, which have no line (such as
+  `project-file-location`), cannot be suppressed this way; disable the
+  check in `.craft-tidy` instead.
+- `--fix` leaves suppressed lines alone: a fix that would change a line on
+  which its check is suppressed is not made. `NOLINT` comments are never
+  moved or wrapped by fixes.
+- Mistakes in `NOLINT` comments are reported as `craft-tidy-nolint`
+  warnings: an unclosed `(`, an empty `()`, an invalid glob, a `-` glob
+  (which cannot be used to un-suppress), a `NOLINTEND` without a matching
+  `NOLINTBEGIN`, and a `NOLINTBEGIN` without a matching `NOLINTEND` (which
+  suppresses nothing). These are always reported, whatever `--checks`
+  selects, and can be made errors with `--warnings-as-errors`.
+- The keywords are case-sensitive, and must start the comment
+  (`# NOLINT`, not `# see NOLINT`).
+
 ### Exit status
 
 | Code | Meaning                                                    |

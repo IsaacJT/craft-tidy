@@ -621,3 +621,16 @@ fn works_together_with_line_length_fixes() {
          - removable-media\n  - wayland\n"
     );
 }
+
+#[test]
+fn suppressed_lists_are_neither_reported_nor_sorted() {
+    let source = "plugs: [b, a] # NOLINT(style-sorted-lists)\nslots: [d, c]\n";
+    assert_eq!(findings(source).len(), 1);
+    assert_eq!(
+        fixed(source).as_deref(),
+        Some("plugs: [b, a] # NOLINT(style-sorted-lists)\nslots: [c, d]\n")
+    );
+    // A block list is left alone if any of its lines is suppressed.
+    let source = "plugs:\n  - b\n  # NOLINTNEXTLINE\n  - a\n";
+    assert_eq!(fixed(source), None);
+}
