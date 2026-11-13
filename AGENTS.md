@@ -110,6 +110,20 @@ snapcraft pack
 Before finishing a change, ensure `cargo fmt`, `cargo clippy` (no warnings)
 and `cargo test` all pass.
 
+## Committing
+
+- Commit as you go, at logical checkpoints: each commit is one
+  self-contained step (e.g. a new setting, a new check, a bug fix, a docs
+  update), not a dump of a whole session's work.
+- Every commit must build and pass `cargo fmt --check`, `cargo clippy
+  --all-targets -- -D warnings` and `cargo test`, and include the tests and
+  doc updates (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`,
+  `examples/.craft-tidy`) for the code it adds.
+- Commit messages: summary line of 50 characters or fewer, blank line, then
+  what changed and why. Always sign off (`git commit -s`).
+- Stage files explicitly and check `git status` before committing; never
+  commit build artifacts or unrelated changes.
+
 ## Conventions
 
 - Rust edition 2024; follow `rustfmt` defaults.
@@ -138,6 +152,6 @@ layout, build steps, dependencies or conventions change. In particular:
   exit codes, status, layout table.
 - `CONTRIBUTING.md`: prerequisites, build/test commands, code structure,
   test file table, how to add checks/settings, dependency table, workflow.
-- `AGENTS.md`: overview, layout, configuration model, testing, commands,
-  conventions.
+- `AGENTS.md`: overview, layout, configuration model, testing, committing,
+  commands, conventions.
 - `examples/.craft-tidy`: every setting, and options of existing checks.

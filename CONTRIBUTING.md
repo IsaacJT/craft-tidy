@@ -128,9 +128,14 @@ Settings must be available both in `.craft-tidy` and on the command line:
    and bug fixes.
 5. Update the documentation (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`)
    whenever behaviour, usage, layout or workflow changes.
-6. Write clear commit messages: a short summary line (50 characters or
+6. Split work into commits at logical checkpoints, one self-contained step
+   per commit. Every commit must build, pass `cargo fmt --check`, `cargo
+   clippy` and `cargo test`, and include the tests and documentation for
+   the code it adds, so that any commit can be checked out, bisected or
+   reverted on its own.
+7. Write clear commit messages: a short summary line (50 characters or
    fewer), a blank line, then a description of what changed and why.
-7. Sign off your commits (`git commit -s`) to certify the
+8. Sign off your commits (`git commit -s`) to certify the
    [Developer Certificate of Origin](https://developercertificate.org/).
 
 ## Coding guidelines
