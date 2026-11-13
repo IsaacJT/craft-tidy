@@ -232,6 +232,74 @@ fn grammar_statements_keep_their_order() {
 }
 
 #[test]
+fn recognises_every_craft_grammar_statement() {
+    for statement in [
+        "on arm64: [x]",
+        "on amd64,arm64: [x]",
+        "to armhf: [x]",
+        "on amd64 to arm64: [x]",
+        "for ubuntu@24.04:riscv64: [x]",
+        "try: [x]",
+        "'on  arm64': [x]",
+        "\"for\\tamd64\": [x]",
+    ] {
+        let source = format!("build-packages:\n  - {statement}\n  - a\n");
+        assert_eq!(
+            findings(&source).len(),
+            1,
+            "{statement:?} should be recognised as grammar"
+        );
+        let sorted = format!("build-packages:\n  - a\n  - {statement}\n  - else: [y]\n");
+        assert!(findings(&sorted).is_empty(), "{statement:?}");
+    }
+}
+
+#[test]
+fn recognises_else_fail_with_any_whitespace() {
+    for else_fail in ["else fail", "'else  fail'", "\"else\\tfail\""] {
+        let source = format!("stage-packages:\n  - a\n  - to armhf: [x]\n  - {else_fail}\n");
+        assert!(findings(&source).is_empty(), "{else_fail:?}");
+    }
+}
+
+#[test]
+fn allows_else_after_else_fail() {
+    // craft-grammar keeps the statement open after `else fail`.
+    let source = "build-packages:\n  - a\n  - on arm64: [x]\n  - else fail\n  - else: [y]\n";
+    assert!(findings(source).is_empty());
+}
+
+#[test]
+fn similar_looking_entries_are_not_grammar() {
+    // Mappings that are not grammar statements make the list unsortable.
+    for entry in [
+        "onarm64: [x]",
+        "on: [x]",
+        "for: [x]",
+        "to : [x]",
+        "trying: [x]",
+        "else now: [x]",
+    ] {
+        let source = format!("build-packages:\n  - {entry}\n  - b\n  - a\n");
+        assert!(
+            findings(&source).is_empty(),
+            "{entry:?} must not be grammar"
+        );
+    }
+    // Strings that are not `else fail` are plain entries, so they must not
+    // follow a grammar statement (a real `else fail` would be fine there).
+    for entry in ["else fails", "'else fail now'", "' else fail'", "elsefail"] {
+        let source = format!("build-packages:\n  - on arm64: [x]\n  - {entry}\n");
+        assert_eq!(
+            findings(&source).len(),
+            1,
+            "{entry:?} should be a plain entry"
+        );
+    }
+    assert!(findings("build-packages:\n  - on arm64: [x]\n  - else fail\n").is_empty());
+}
+
+#[test]
 fn checks_lists_inside_grammar_statements() {
     assert_eq!(
         findings("build-packages:\n  - on arm64:\n      - b\n      - a\n"),

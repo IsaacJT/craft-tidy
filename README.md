@@ -228,7 +228,8 @@ Snapcraft, so sorting them never changes the meaning of the project:
 checked unless you add them.
 
 [Advanced grammar](https://documentation.ubuntu.com/snapcraft/latest/reference/advanced-grammar/)
-entries (`on …:`, `to …:`, `try:`, `else:` and `else fail`) must come after
+entries (`on …:`, `to …:`, `on … to …:`, `for …:`, `try:`, `else:` and
+`else fail`, recognised the same way as craft-grammar does) must come after
 all plain entries. They keep their original order, so that each `else`
 stays with the statement it belongs to, and the lists inside them must be
 sorted too:
@@ -244,7 +245,7 @@ build-packages:
 ```
 
 Lists that contain other kinds of entries (such as mappings or anchors), or
-an `else` that does not directly follow a grammar statement, are not
+an `else` that does not directly follow another grammar entry, are not
 checked.
 
 With `--fix`, the entries are reordered. Whole entries move, including any

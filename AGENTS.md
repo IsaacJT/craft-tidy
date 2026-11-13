@@ -44,8 +44,10 @@ check framework and `--fix` exist. Implemented checks:
   - `src/checks/sorted_lists.rs` - `style-sorted-lists` (options `keys`,
     `case-sensitive`). Only lists under `keys` (default: known unordered
     sets; never order-sensitive ones like `command-chain` or `*-parameters`).
-    Advanced grammar (`on`/`to`/`try`/`else`/`else fail`) goes last in
-    original order; nested grammar lists are checked too. Fix moves whole
+    Advanced grammar (`on`/`to`/`for`/`try`/`else`/`else fail`, matched like
+    craft-grammar's `_processor.py`: keyword + any whitespace) goes last in
+    original order; an `else` must follow a grammar entry; nested grammar
+    lists are checked too. Fix moves whole
     entry lines (with comments above, except above the first entry) and
     verifies the result equals the original `Value` with that list permuted
   - `src/fix.rs` - `Edit` and `apply_edits()`: applies edits from the end of

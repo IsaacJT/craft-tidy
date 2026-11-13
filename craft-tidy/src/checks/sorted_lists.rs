@@ -54,11 +54,11 @@ impl Check for SortedLists {
          build-packages, stage-packages, plugs and after, whose order does \
          not matter to Snapcraft).\n\
          \n\
-         Advanced grammar entries (on ...:, to ...:, try:, else: and else \
-         fail) must come after all plain entries, in their original order so \
+         Advanced grammar entries (on ...:, to ...:, for ...:, try:, else: \
+         and else fail) must come after all plain entries, in their original order so \
          that each else stays with the statement it belongs to; the lists \
          inside them must be sorted too. Lists containing other kinds of \
-         entries, or an else that does not follow a grammar statement, are \
+         entries, or an else that does not follow another grammar entry, are \
          not checked.\n\
          \n\
          With --fix, the entries are reordered. Comments directly above an \
@@ -125,11 +125,34 @@ struct UnsortedList {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Grammar {
-    On,
-    To,
+    /// `on …`, `to …`, `on … to …` or `for …`.
+    Selector,
     Try,
     Else,
     ElseFail,
+}
+
+/// The grammar statement that a single-entry mapping with this key starts,
+/// following craft-grammar's rules (any whitespace after the keyword).
+fn statement(key: &str) -> Option<Grammar> {
+    let has_selectors = |keyword: &str| {
+        key.strip_prefix(keyword)
+            .is_some_and(|rest| rest.starts_with(char::is_whitespace) && !rest.trim().is_empty())
+    };
+    match key {
+        "try" => Some(Grammar::Try),
+        "else" => Some(Grammar::Else),
+        _ if ["on", "to", "for"].into_iter().any(has_selectors) => Some(Grammar::Selector),
+        _ => None,
+    }
+}
+
+/// Whether a list entry is the `else fail` statement.
+fn is_else_fail(value: &str) -> bool {
+    value
+        .strip_prefix("else")
+        .and_then(|rest| rest.strip_suffix("fail"))
+        .is_some_and(|gap| !gap.is_empty() && gap.chars().all(char::is_whitespace))
 }
 
 /// How an entry takes part in sorting.
@@ -157,7 +180,7 @@ fn classify(node: &Node) -> Option<Entry<'_>> {
         return None;
     }
     match &node.kind {
-        NodeKind::Scalar { value, .. } if value == "else fail" => Some(Entry::Grammar {
+        NodeKind::Scalar { value, .. } if is_else_fail(value) => Some(Entry::Grammar {
             kind: Grammar::ElseFail,
             label: value,
             nested: None,
@@ -166,17 +189,7 @@ fn classify(node: &Node) -> Option<Entry<'_>> {
         NodeKind::Mapping { entries, .. } if entries.len() == 1 => {
             let (key, value) = &entries[0];
             let label = key.as_scalar().filter(|_| !key.decorated)?;
-            let kind = if label.starts_with("on ") {
-                Grammar::On
-            } else if label.starts_with("to ") {
-                Grammar::To
-            } else if label == "try" {
-                Grammar::Try
-            } else if label == "else" {
-                Grammar::Else
-            } else {
-                return None;
-            };
+            let kind = statement(label)?;
             let nested = matches!(value.kind, NodeKind::Sequence { .. }).then_some(value);
             Some(Entry::Grammar {
                 kind,
@@ -271,21 +284,14 @@ impl Analysis<'_> {
             return;
         };
 
-        // An else must directly follow a statement it can belong to.
+        // An else belongs to the statement before it, so it must directly
+        // follow a grammar entry (craft-grammar ends a statement at the next
+        // plain entry).
         let valid_grammar = entries.iter().enumerate().all(|(i, entry)| match entry {
             Entry::Grammar {
                 kind: Grammar::Else | Grammar::ElseFail,
                 ..
-            } => {
-                i > 0
-                    && matches!(
-                        entries[i - 1],
-                        Entry::Grammar {
-                            kind: Grammar::On | Grammar::To | Grammar::Try | Grammar::Else,
-                            ..
-                        }
-                    )
-            }
+            } => i > 0 && matches!(entries[i - 1], Entry::Grammar { .. }),
             _ => true,
         });
         if !valid_grammar {
