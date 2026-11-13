@@ -4,11 +4,11 @@
 
 mod common;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use clap::CommandFactory;
 use clap::error::ErrorKind;
-use craft_tidy::cli::Cli;
+use craft_tidy::cli::{Cli, Command};
 use craft_tidy::config::OptionValue;
 
 use common::{cli, try_cli};
@@ -72,7 +72,9 @@ fn accepts_a_path() {
 
 #[test]
 fn rejects_more_than_one_path() {
-    assert_eq!(rejected(&["a", "b"]), ErrorKind::UnknownArgument);
+    // clap reports the second path as a subcommand that cannot follow a
+    // path, as there are subcommands.
+    assert_eq!(rejected(&["a", "b"]), ErrorKind::ArgumentConflict);
 }
 
 #[test]
@@ -202,4 +204,29 @@ fn help_and_version_are_available() {
     assert_eq!(rejected(&["--version"]), ErrorKind::DisplayVersion);
     let help = Cli::command().render_long_help().to_string();
     assert!(help.contains(".craft-tidy"), "{help}");
+}
+
+#[test]
+fn lsp_runs_the_language_server() {
+    assert_eq!(cli(&["lsp"]).command, Some(Command::Lsp));
+    assert_eq!(cli(&[]).command, None);
+    // A directory named lsp can still be linted.
+    let parsed = cli(&["./lsp"]);
+    assert_eq!(parsed.command, None);
+    assert_eq!(parsed.path, PathBuf::from("./lsp"));
+    // The command must come first; after options, lsp is a path.
+    let parsed = cli(&["--checks=x", "lsp"]);
+    assert_eq!(parsed.command, None);
+    assert_eq!(parsed.path, PathBuf::from("lsp"));
+}
+
+#[test]
+fn lsp_takes_no_lint_options() {
+    for args in [
+        &["lsp", "--checks=x"][..],
+        &["lsp", "--fix"],
+        &["lsp", "somewhere"],
+    ] {
+        assert!(try_cli(args).is_err(), "{args:?}");
+    }
 }

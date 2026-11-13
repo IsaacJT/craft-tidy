@@ -1,0 +1,69 @@
+summary: Run the language server
+
+execute: |
+  mkdir -p "$WORK/project/snap"
+  cd "$WORK/project"
+  printf 'name: test\nplugs: [b, a]\n' > snap/snapcraft.yaml
+  printf 'checks: -style-collapsed-sequences\n' > .craft-tidy
+
+  # A minimal LSP client: initialise the server, open the project file,
+  # print the diagnostics published for it, then shut the server down.
+  cat > client.py <<'EOF'
+  import json, subprocess, sys
+
+  def send(server, message):
+      data = json.dumps(message).encode()
+      server.stdin.write(b"Content-Length: %d\r\n\r\n" % len(data) + data)
+      server.stdin.flush()
+
+  def receive(server):
+      length = None
+      while True:
+          line = server.stdout.readline()
+          if not line:
+              sys.exit("the server closed its output")
+          if line in (b"\r\n", b"\n"):
+              break
+          key, value = line.decode().split(":", 1)
+          if key.lower() == "content-length":
+              length = int(value)
+      return json.loads(server.stdout.read(length))
+
+  def until(server, accept):
+      while True:
+          message = receive(server)
+          if accept(message):
+              return message
+
+  path = sys.argv[1]
+  server = subprocess.Popen(["craft-tidy", "lsp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+  send(server, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {"processId": None, "rootUri": None, "capabilities": {}}})
+  until(server, lambda m: m.get("id") == 1)
+  send(server, {"jsonrpc": "2.0", "method": "initialized", "params": {}})
+  send(server, {"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
+      "textDocument": {"uri": "file://" + path, "languageId": "yaml", "version": 1,
+                       "text": open(path).read()}}})
+  published = until(server, lambda m: m.get("method") == "textDocument/publishDiagnostics")
+  for diagnostic in published["params"]["diagnostics"]:
+      start = diagnostic["range"]["start"]
+      print(start["line"], start["character"], diagnostic["code"], diagnostic["message"])
+  send(server, {"jsonrpc": "2.0", "id": 2, "method": "shutdown"})
+  until(server, lambda m: m.get("id") == 2)
+  send(server, {"jsonrpc": "2.0", "method": "exit"})
+  sys.exit(server.wait(timeout=10))
+  EOF
+
+  python3 client.py "$WORK/project/snap/snapcraft.yaml" > out.txt
+  cat out.txt
+  # The .craft-tidy next to the project disables style-collapsed-sequences.
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "^1 8 style-sorted-lists entries of 'plugs' are not sorted: 'a' should come before 'b'$" < out.txt
+
+  # Without an editor, the server fails.
+  set +e
+  craft-tidy lsp < /dev/null 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "craft-tidy: error: language server:" < err.txt

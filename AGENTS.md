@@ -30,10 +30,21 @@ check framework and `--fix` exist. Implemented checks:
     language server);
     `run()` uses the real registry, `run_with_checks()` takes any checks
   - `src/cli.rs` - clap derive `Cli`; `Cli::settings()` turns flags into a
-    `Settings` layer
+    `Settings` layer; `Cli::command` holds the `lsp` subcommand
+    (`args_conflicts_with_subcommands`, so it takes no lint options and
+    must come first)
   - `src/config.rs` - `Settings`, `CheckOptions`, `OptionValue`, `.craft-tidy`
     parsing/serialization and upward discovery
   - `src/glob.rs` - `GlobList`, clang-tidy style check globs
+  - `src/lsp.rs` - language server (`craft-tidy lsp`, `cli::Command::Lsp`;
+    `serve(Connection)` for tests, `run_stdio()`): full text sync,
+    publishes diagnostics on open/change (cleared on close) for files
+    whose name is a craft project file (`Craft::from_path`), with
+    `app::settings_for(path)`; config and YAML errors become diagnostics
+    with codes `craft-tidy-config`/`craft-tidy-syntax`. `LineIndex`
+    converts byte offsets to LSP positions (UTF-16 columns) and back;
+    `uri_to_path` decodes `file:` URIs (lsp-types 0.97's `Uri` cannot).
+    Unknown requests get `MethodNotFound`
   - `src/nolint.rs` - `Nolint::parse(document)`: `# NOLINT`,
     `# NOLINTNEXTLINE`, `# NOLINTBEGIN`/`# NOLINTEND`, each optionally
     with `(globs)` (no `-` globs, not empty) and trailing text; only real
@@ -152,7 +163,8 @@ check framework and `--fix` exist. Implemented checks:
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
-  `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`, `nolint`;
+  `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`, `nolint`,
+  `lsp` (a Python LSP client embedded in the task);
   projects go in `$WORK` (`/root/work`); `spread/.extension` is Snapcraft's
   template plus a cloud-init wait
 - `README.md` - user-facing introduction, usage and configuration reference
@@ -249,7 +261,7 @@ including tests, docs, `examples/.craft-tidy` and the spread tasks.
 
 ## Testing
 
-- All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`,
+- All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`, `lsp.rs`,
   `nolint.rs`, `config.rs`, `cli.rs`, `craft.rs`, `project.rs`, `yaml.rs`, `fix.rs`, `checks.rs`,
   `app.rs`), plus
   `example.rs` (the example config) and `binary.rs` (end-to-end runs of the
@@ -345,7 +357,9 @@ settings or exit behaviour go in `cli`, `config`, `errors` or `fix`.
 - Program output goes to the `out` writer and warnings to the `err` writer
   passed to `app::run`; do not print directly from library code.
 - Keep dependencies minimal; do not add crates without a clear need. Current
-  runtime dependencies: `clap`, `serde`, `serde-saphyr`. Do not use the
+  runtime dependencies: `clap`, `serde`, `serde-saphyr`, and for the
+  language server `lsp-server`, `lsp-types` and `serde_json` (no async
+  runtime; do not add tokio/tower-lsp). Do not use the
   deprecated `serde_yaml`/`serde_yml` crates.
 - Add positive and negative tests in `craft-tidy/tests/` for any new check,
   setting or bug fix.

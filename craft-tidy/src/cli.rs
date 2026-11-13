@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Parser, Subcommand};
 
 use crate::config::{OptionValue, Settings};
 use crate::glob::GlobList;
@@ -24,15 +24,29 @@ glob replaces all globs before it), and the last glob matching a check
 decides whether it is enabled. Use --dump-config to see
 the effective configuration.";
 
+/// Commands other than linting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Subcommand)]
+pub enum Command {
+    /// Run a language server (LSP) on standard input and output, for
+    /// editors: open project files are checked as they are edited, with
+    /// the configuration found for them. To lint a directory named lsp,
+    /// pass it as ./lsp.
+    Lsp,
+}
+
 #[derive(Debug, Parser)]
 #[command(
     name = "craft-tidy",
     version,
     about = "A linter for the project files of Canonical's craft tools \
              (Snapcraft, Charmcraft, Rockcraft, Imagecraft and Debcraft)",
-    after_long_help = AFTER_HELP
+    after_long_help = AFTER_HELP,
+    args_conflicts_with_subcommands = true
 )]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Project directory, or project file such as snapcraft.yaml, to lint.
     /// In a directory, the project file of every craft tool found is linted.
     #[arg(value_name = "PATH", default_value = ".")]

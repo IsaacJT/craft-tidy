@@ -167,6 +167,67 @@ parts:
 | 1    | At least one finding was reported as an error              |
 | 2    | Invalid usage, invalid configuration, no project file found, a project file that is not valid YAML, or an I/O error |
 
+## Editor integration
+
+`craft-tidy lsp` runs a [language server](https://microsoft.github.io/language-server-protocol/),
+so that editors and IDEs show craft-tidy's findings while you edit, without
+saving. Editors start it themselves and talk to it over standard input and
+output; it is not meant to be run by hand.
+
+- Only project files are checked, recognised by their name
+  (`snapcraft.yaml`, `charmcraft.yaml`, `rockcraft.yaml`, `imagecraft.yaml`,
+  `debcraft.yaml`, `.snapcraft.yaml`), so it can be enabled for all YAML
+  files.
+- The configuration is found as on the command line: the `.craft-tidy`
+  file in the project file's directory or a parent. Command line options
+  cannot be given to the server. A `.craft-tidy` that cannot be read or is
+  invalid, and YAML syntax errors, are shown as errors at the top of, or in,
+  the file.
+- Findings are underlined where they apply, with the check's name as the
+  code, as warnings or (with `warnings-as-errors`) errors.
+
+`lsp` must come first on the command line; to lint a directory named
+`lsp`, pass it as `./lsp`. As with the command line, the snap can only read
+`.craft-tidy` files in your home directory.
+
+### Neovim (0.11 or later)
+
+```lua
+vim.lsp.config('craft_tidy', {
+  cmd = { 'craft-tidy', 'lsp' },
+  filetypes = { 'yaml' },
+  root_markers = { '.craft-tidy', '.git' },
+})
+vim.lsp.enable('craft_tidy')
+```
+
+### Helix
+
+In `languages.toml`, alongside any other YAML language server:
+
+```toml
+[language-server.craft-tidy]
+command = "craft-tidy"
+args = ["lsp"]
+
+[[language]]
+name = "yaml"
+language-servers = ["yaml-language-server", "craft-tidy"]
+```
+
+### Emacs (Eglot)
+
+Eglot runs one server per major mode, so this replaces any other YAML
+language server:
+
+```elisp
+(add-to-list 'eglot-server-programs
+             '((yaml-mode yaml-ts-mode) . ("craft-tidy" "lsp")))
+```
+
+Other editors with LSP support work the same way: run `craft-tidy lsp` for
+YAML files.
+
 ## Configuration
 
 craft-tidy can be configured with command line flags or with a YAML file
@@ -490,6 +551,7 @@ comments between its entries is reported but not reordered.
 | `craft-tidy/tests/`    | Test suite                               |
 | `examples/.craft-tidy` | Example configuration file               |
 | `snap/snapcraft.yaml`  | Snap packaging for craft-tidy itself     |
+| `craft-tidy/src/lsp.rs` | The language server (`craft-tidy lsp`) |
 | `snap/gui/`            | Snap icon (Noto Emoji star, Apache-2.0) and its license |
 | `snapcraft-test.yaml`, `spread/` | Spread tests of the snap, run with `snapcraft test` |
 | `.github/workflows/`   | CI: cargo checks and tests, snap build and spread tests |

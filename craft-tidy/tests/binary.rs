@@ -528,3 +528,55 @@ fn nolint_comments_suppress_findings_and_fixes() {
          [craft-tidy-nolint]\n"
     );
 }
+
+#[test]
+fn lsp_serves_editors_over_standard_input_and_output() {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let dir = project(None);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let uri = format!("file://{}", file.display());
+    let messages = [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#.to_owned(),
+        r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#.to_owned(),
+        format!(
+            r#"{{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{{"textDocument":{{"uri":"{uri}","languageId":"yaml","version":1,"text":"plugs: [b, a]\n"}}}}}}"#
+        ),
+        r#"{"jsonrpc":"2.0","id":2,"method":"shutdown"}"#.to_owned(),
+        r#"{"jsonrpc":"2.0","method":"exit"}"#.to_owned(),
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_craft-tidy"))
+        .arg("lsp")
+        .current_dir(dir.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for message in &messages {
+        write!(stdin, "Content-Length: {}\r\n\r\n{message}", message.len()).unwrap();
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let out = stdout(&output);
+    assert!(
+        out.contains(r#""method":"textDocument/publishDiagnostics""#),
+        "{out}"
+    );
+    assert!(out.contains(r#""code":"style-sorted-lists""#), "{out}");
+}
+
+#[test]
+fn lsp_fails_without_an_editor() {
+    // Standard input closes before the editor initialises the server.
+    let output = Command::new(env!("CARGO_BIN_EXE_craft-tidy"))
+        .arg("lsp")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(stderr(&output).starts_with("craft-tidy: error: language server: "));
+}

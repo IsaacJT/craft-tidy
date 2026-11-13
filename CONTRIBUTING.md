@@ -39,7 +39,8 @@ end to end, under strict confinement. There is one task per craft tool
 `debcraft`, `imagecraft`, `rockcraft`, `snapcraft`: where the project file
 is looked for, findings, `--fix`, and which checks apply), plus tasks for
 informational options (`cli`), `--fix` (`fix`), configuration files
-(`config`), error handling (`errors`) and `NOLINT` comments (`nolint`). Run it from
+(`config`), error handling (`errors`), `NOLINT` comments (`nolint`) and
+the language server (`lsp`, driven by a small Python LSP client). Run it from
 the repository root (it needs LXD, as `snapcraft pack` does):
 
 ```sh
@@ -87,6 +88,7 @@ The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
 | `config`      | `Settings` layers, `.craft-tidy` parsing, merging and discovery  |
 | `glob`        | clang-tidy style check selection globs                           |
 | `nolint`      | Parsing `NOLINT` comments that suppress findings                 |
+| `lsp`         | The language server (`craft-tidy lsp`): sync, diagnostics, UTF-16 positions |
 | `craft`       | The supported craft tools and their project file locations       |
 | `project`     | Locating, loading and parsing craft project files                |
 | `yaml`        | YAML document tree with source positions, and the `Value` model  |
@@ -105,6 +107,7 @@ module through the crate's public API:
 | ------------------ | --------------------------------------------------------------- |
 | `tests/glob.rs`    | `glob`: parsing, matching, precedence, YAML (de)serialization   |
 | `tests/nolint.rs`  | `nolint`: directives, check lists, mistakes in comments         |
+| `tests/lsp.rs`     | `lsp`: sessions driven over an in-memory connection, positions, URIs |
 | `tests/config.rs`  | `config`: parsing, validation, merging, serialization, discovery |
 | `tests/cli.rs`     | `cli`: argument parsing and validation                          |
 | `tests/craft.rs`   | `craft`: tool names, project file locations, file recognition   |
@@ -227,6 +230,9 @@ Settings must be available both in `.craft-tidy` and on the command line:
 | `clap`         | Command line parsing, help output                             |
 | `serde`        | Deserializing and serializing configuration                   |
 | `serde-saphyr` | YAML parsing with line/column error reporting; its re-exported `granit_parser` event parser builds the `yaml` document tree |
+| `lsp-server`   | The language server's connection and message loop (from rust-analyzer; synchronous, so no async runtime) |
+| `lsp-types`    | Language Server Protocol message types                        |
+| `serde_json`   | JSON values of LSP messages                                   |
 | `tempfile`     | Temporary directories in tests (dev-dependency only)          |
 
 ## Continuous integration
