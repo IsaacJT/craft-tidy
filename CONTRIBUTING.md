@@ -71,6 +71,9 @@ git rebase main --exec \
   '(cd craft-tidy && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test) && snapcraft pack'
 ```
 
+Commits that change user-visible behaviour must also pass `snapcraft test`;
+run it on those commits as well (it is slower, as it starts VMs).
+
 The rebase stops at the first commit that fails, so you can fix it in place
 with `git commit --amend` and continue with `git rebase --continue`.
 
@@ -165,7 +168,15 @@ Guidelines:
    projects that pass, projects that fail, each option, and for fixable
    checks the fixed output as well as problems that must not be fixed.
 8. Document the check, the tools it applies to and its options in
-   `README.md`, and show its options in `examples/.craft-tidy`.
+   `README.md` (check table and a section of its own), show its options in
+   `examples/.craft-tidy`, and add its module to the layout list in
+   `AGENTS.md` (and its test file to the tables in `CONTRIBUTING.md` and
+   `AGENTS.md`).
+9. Add assertions for the check to the spread task of every craft tool it
+   applies to (`spread/general/<tool>/task.yaml`), and make sure the tasks
+   of the other tools do not expect it; for fixes, extend the `fix` task.
+10. Run the cargo checks, `snapcraft pack` and `snapcraft test` before
+    committing.
 
 ## Adding a configuration setting
 
@@ -183,7 +194,16 @@ Settings must be available both in `.craft-tidy` and on the command line:
    `Cli::settings()`.
 4. Add tests in `tests/config.rs`, `tests/cli.rs` and `tests/app.rs`, for both
    valid and invalid values.
-5. Add the setting to `examples/.craft-tidy` and document it in `README.md`.
+5. Add an end-to-end test of the flag and the file key in
+   `tests/binary.rs`.
+6. Add the setting to `examples/.craft-tidy` (enforced by
+   `tests/example.rs`), document it in `README.md` (options table and
+   configuration section) and update the configuration model in
+   `AGENTS.md`.
+7. Add assertions for the flag and the `.craft-tidy` key to the `cli` and
+   `config` spread tasks.
+8. Run the cargo checks, `snapcraft pack` and `snapcraft test` before
+   committing.
 
 ## Dependencies
 
@@ -196,8 +216,8 @@ Settings must be available both in `.craft-tidy` and on the command line:
 
 ## Continuous integration
 
-`.github/workflows/ci.yaml` runs on every push to `main` and every pull
-request:
+`.github/workflows/ci.yaml` runs on every push to `main`, every pull
+request, and on demand (`workflow_dispatch`):
 
 | Job               | What it does                                                                 |
 | ----------------- | ---------------------------------------------------------------------------- |
@@ -221,7 +241,9 @@ When raising `rust-version`, update the matrix in the workflow too.
 6. Split work into commits at logical checkpoints, one self-contained step
    per commit. Every commit must pass `cargo fmt --check`, `cargo clippy`
    and `cargo test`, build the snap with `snapcraft pack` (see
-   [Checking every commit](#checking-every-commit)), and include the tests
+   [Checking every commit](#checking-every-commit)), pass `snapcraft test`
+   if it changes user-visible behaviour (see
+   [Testing the snap](#testing-the-snap)), and include the tests
    and documentation for the code it adds, so that any commit can be
    checked out, bisected or reverted on its own.
 7. Write clear commit messages: a short summary line (50 characters or

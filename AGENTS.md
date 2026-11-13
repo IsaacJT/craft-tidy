@@ -118,7 +118,9 @@ Step-by-step checklists for adding a check or a setting are in
 follow them together with the rules below. The types involved (`Check`,
 `Context`, `Diagnostic`, `OptionSpec`, `OptionKind`) are in
 `src/checks/mod.rs`; `Check::fix` returns the fixed `yaml::Document`, or
-`None` if nothing changed.
+`None` if nothing could be fixed (an unchanged document also counts as no
+change). The CONTRIBUTING checklists are the complete list of steps,
+including tests, docs, `examples/.craft-tidy` and the spread tasks.
 
 - Names are kebab-case with a category prefix. Existing categories:
   `project-` (project layout), `style-` (formatting of the project file).

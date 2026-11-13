@@ -57,7 +57,9 @@ them and exits with status 2. If no project file is found, craft-tidy also
 exits with status 2.
 
 Findings are printed one per line as
-`path:line:column: severity: message [check-name]`.
+`path:line:column: severity: message [check-name]`, or
+`path: severity: message [check-name]` for findings about the file as a
+whole (such as its location).
 
 | Option                                 | Description                                                         |
 | -------------------------------------- | ------------------------------------------------------------------- |
@@ -84,14 +86,17 @@ With `--fix` (or `fix: true` in `.craft-tidy`), craft-tidy fixes the
 problems it can and rewrites the project file in place. It then reports the
 problems that remain, and prints a summary such as
 `craft-tidy: applied fixes to snap/snapcraft.yaml (5 issue(s) found, 1 remaining)`
-to standard error. The exit status reflects the remaining problems only.
+to standard error; if nothing could be changed, no summary is printed. The
+exit status reflects the remaining problems only.
 
 Fixes are careful edits of the original text, so formatting and comments
 elsewhere in the file are preserved. Every edit is checked by parsing the
 result again: an edit is only kept if the file is still valid YAML and its
 data changed exactly as intended (for example, a reformatted value must
 still have the same content). Problems that cannot be fixed safely are left
-alone and reported, where known with the reason they could not be fixed:
+alone and reported, where known with the reason they could not be fixed
+(the reason is only shown when fixing is enabled, by `--fix` or by `fix:
+true` in `.craft-tidy`):
 
 ```text
 snap/snapcraft.yaml:12:81: warning: line is 95 characters long, exceeding the limit of 80 (cannot be fixed: it has no space at which it can be broken safely, such as in a long URL or word) [style-line-length]

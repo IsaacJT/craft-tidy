@@ -151,7 +151,8 @@ pub trait Check {
     }
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic>;
     /// Fixes as many of the reported problems as possible, returning the
-    /// fixed document, or `None` if nothing could be fixed. Implementations
+    /// fixed document, or `None` if nothing could be fixed (the runner also
+    /// treats a returned document equal to the input as no change). Implementations
     /// should use [`crate::fix::apply_edits`] so that each edit is verified.
     fn fix(&self, _ctx: &Context<'_>) -> Option<Document> {
         None

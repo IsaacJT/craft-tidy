@@ -4,13 +4,16 @@
 # craft-tidy looks for it in the project directory and its parents. Every key
 # is optional; omitted keys keep their defaults. Every value below is the
 # default, so the copy changes nothing until you edit it. Command line flags
-# override the values in this file (see `craft-tidy --help`), and
+# take precedence over this file: they override most values, while check
+# globs given on the command line are appended to the ones here (see
+# `craft-tidy --help`), and
 # `craft-tidy --dump-config` shows the effective configuration.
 
 # Globs selecting the checks to run, evaluated left to right; the last glob
 # matching a check decides whether it runs. `*` matches any characters and a
 # leading `-` disables the matching checks. Check names start with their
-# category (`project-`, `style-`). Run `craft-tidy --list-checks` to see them.
+# category (`project-`, `style-`). Run `craft-tidy --list-checks --checks='*'`
+# to see them all.
 # This can also be a comma-separated string, e.g. "*,-style-sorted-lists" to
 # run every check except style-sorted-lists. Default: "*" (all checks).
 checks:
