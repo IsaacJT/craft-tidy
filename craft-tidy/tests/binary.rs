@@ -169,6 +169,12 @@ fn reports_and_fixes_long_lines() {
     let long =
         "summary: a summary that is far too long to fit on a single line of eighty characters\n";
     fs::write(&file, format!("name: test\n{long}")).unwrap();
+    // The project has no license; that is not what is tested here.
+    fs::write(
+        dir.path().join(".craft-tidy"),
+        "checks: -metadata-license\n",
+    )
+    .unwrap();
 
     let output = craft_tidy(dir.path(), &[]);
     assert_eq!(output.status.code(), Some(0));
@@ -300,6 +306,12 @@ fn explains_style_sorted_lists() {
 fn reports_project_files_in_the_project_root() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("snapcraft.yaml"), "name: test\n").unwrap();
+    // The project has no license; that is not what is tested here.
+    fs::write(
+        dir.path().join(".craft-tidy"),
+        "checks: -metadata-license\n",
+    )
+    .unwrap();
     let expected = "./snapcraft.yaml: warning: snapcraft.yaml is in the project root; move it \
                     to snap/snapcraft.yaml [project-file-location]\n";
 
@@ -409,7 +421,7 @@ fn lints_the_project_files_of_all_craft_tools() {
         dir.path(),
         &[
             "--no-config",
-            "--checks=-style-collapsed-sequences",
+            "--checks=-style-collapsed-sequences,-metadata-license",
             "-o",
             "style-sorted-lists.keys=a",
         ],

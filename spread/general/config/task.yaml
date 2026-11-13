@@ -3,7 +3,7 @@ summary: Read the configuration from .craft-tidy and the command line
 execute: |
   mkdir -p "$WORK/project/snap"
   cd "$WORK/project"
-  printf 'name: test\nsummary: %s\n' "$(printf 'x%.0s' $(seq 90))" > snap/snapcraft.yaml
+  printf 'name: test\nlicense: MIT\nsummary: %s\n' "$(printf 'x%.0s' $(seq 90))" > snap/snapcraft.yaml
 
   craft-tidy | MATCH "\[style-line-length\]"
 

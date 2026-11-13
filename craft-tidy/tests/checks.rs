@@ -628,6 +628,7 @@ fn every_check_reports_what_its_findings_are_about() {
         covered,
         [
             ("craft-tidy-nolint", "NOLINTEND"),
+            ("metadata-license", "name"),
             ("project-root-source", "."),
             ("snapcraft-components", "dcos"),
             ("style-collapsed-sequences", "- x"),

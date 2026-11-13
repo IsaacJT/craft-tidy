@@ -15,7 +15,7 @@
 # leading `-` disables the matching checks. To run only some checks, start
 # with "-*" (e.g. "-*,style-*"): a positive glob such as "style-*" on its own
 # leaves every check enabled. Check names start with their
-# category (`project-`, `snapcraft-`, `style-`). Run `craft-tidy --list-checks --checks='*'`
+# category (`metadata-`, `project-`, `snapcraft-`, `style-`). Run `craft-tidy --list-checks --checks='*'`
 # to see them all.
 # This can also be a comma-separated string, e.g. "*,-style-sorted-lists" to
 # run every check except style-sorted-lists. Default: "*" (all checks).

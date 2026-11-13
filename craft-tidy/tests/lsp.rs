@@ -158,7 +158,7 @@ fn summary(diagnostics: &[Value]) -> Vec<(String, u64, u64, u64, u64)> {
 
 #[test]
 fn publishes_findings_of_open_documents() {
-    let dir = project(None);
+    let dir = project(Some("checks: -metadata-license\n"));
     let file = uri(&dir.path().join("snap/snapcraft.yaml"));
     let client = Client::start();
     client.open(&file, "name: test\nplugs: [b, a]\n");
@@ -197,7 +197,7 @@ fn publishes_findings_of_open_documents() {
 #[test]
 fn uses_the_configuration_of_the_file() {
     let dir = project(Some(
-        "checks: -style-collapsed-sequences\nwarnings-as-errors: style-*\n",
+        "checks: -style-collapsed-sequences,-metadata-license\nwarnings-as-errors: style-*\n",
     ));
     let file = uri(&dir.path().join("snap/snapcraft.yaml"));
     let client = Client::start();
@@ -341,7 +341,8 @@ fn configuration_files_need_not_exist() {
     let client = Client::start();
     client.open(&uri(&missing), "plugs: [b, a]\n");
     let (_, _, diagnostics) = client.diagnostics();
-    assert_eq!(diagnostics.len(), 2);
+    // The two lists, and the missing license.
+    assert_eq!(diagnostics.len(), 3);
     client.shutdown();
     fs::remove_dir_all(dir.path()).unwrap();
 }
@@ -406,7 +407,9 @@ fn titles(actions: &[Value]) -> Vec<(String, String)> {
 
 /// A client with `text` open as a project file, and its URI.
 fn open_project(text: &str) -> (Client, String, tempfile::TempDir) {
-    let dir = project(Some("checks: -style-collapsed-sequences\n"));
+    let dir = project(Some(
+        "checks: -style-collapsed-sequences,-metadata-license\n",
+    ));
     let file = uri(&dir.path().join("snap/snapcraft.yaml"));
     let client = Client::start();
     client.open(&file, text);
@@ -633,7 +636,7 @@ fn asks_editors_that_can_to_watch_configuration_files() {
 
 #[test]
 fn rechecks_open_documents_when_the_configuration_changes() {
-    let dir = project(None);
+    let dir = project(Some("checks: -metadata-license\n"));
     let file = uri(&dir.path().join("snap/snapcraft.yaml"));
     let config = dir.path().join(".craft-tidy");
     let client = Client::start();
@@ -641,7 +644,7 @@ fn rechecks_open_documents_when_the_configuration_changes() {
     assert_eq!(client.diagnostics().2.len(), 2);
 
     // A change reported by file watching.
-    fs::write(&config, "checks: -style-sorted-lists\n").unwrap();
+    fs::write(&config, "checks: -style-sorted-lists,-metadata-license\n").unwrap();
     client.notify(
         "workspace/didChangeWatchedFiles",
         json!({"changes": [{"uri": uri(&config), "type": 2}]}),
@@ -654,7 +657,7 @@ fn rechecks_open_documents_when_the_configuration_changes() {
     );
 
     // The configuration file saved in the editor.
-    fs::write(&config, "checks: -style-*\n").unwrap();
+    fs::write(&config, "checks: -style-*,-metadata-license\n").unwrap();
     client.notify(
         "textDocument/didSave",
         json!({"textDocument": {"uri": uri(&config)}}),

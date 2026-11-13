@@ -4,6 +4,7 @@
 
 mod collapsed_sequences;
 mod components;
+mod license;
 mod line_length;
 mod project_file_location;
 mod redundant_platforms;
@@ -224,6 +225,7 @@ pub fn registry() -> Vec<Box<dyn Check>> {
     let mut checks: Vec<Box<dyn Check>> = vec![
         Box::new(collapsed_sequences::CollapsedSequences),
         Box::new(components::Components),
+        Box::new(license::License),
         Box::new(line_length::LineLength),
         Box::new(project_file_location::ProjectFileLocation),
         Box::new(redundant_platforms::RedundantPlatforms),

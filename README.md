@@ -343,6 +343,7 @@ non-hidden parent directory) instead.
 
 | Check                   | Applies to | Fixable | Description                                               |
 | ----------------------- | ---------- | ------- | --------------------------------------------------------- |
+| `metadata-license`      | All but Charmcraft | No | The project must declare its license |
 | `project-file-location` | Snapcraft  | No      | The project file must be in a `snap/` directory (`snap/` or `build-aux/snap/`) |
 | `project-root-source`   | All but Charmcraft | No | Parts should not use the whole project directory (`source: .`) as their source |
 | `snapcraft-components`  | Snapcraft  | No      | Components used by parts must be defined under `components` |
@@ -357,11 +358,33 @@ names them.
 Check names start with their category, so whole categories can be selected
 with globs such as `--checks='-*,style-*'`: `project-` checks are about the
 layout of the project and how parts use it, `style-` checks about how the project file is
-written (its formatting, and redundant definitions), and `snapcraft-`
-checks about the content of Snapcraft projects.
+written (its formatting, and redundant definitions), `metadata-` checks
+about the project's metadata, such as its license, and `snapcraft-` checks
+about the content of Snapcraft projects.
 
 Run `craft-tidy --list-checks --checks='*'` to list all checks and
 `craft-tidy --explain CHECK` for details.
+
+### metadata-license
+
+Reports projects without a top-level `license`, or with an empty one, at
+their `name` (so it can be suppressed there with `# NOLINT`). Set it to the
+project's license as an [SPDX](https://spdx.org/licenses/) expression, such
+as `license: GPL-3.0-only` or `license: Apache-2.0 OR MIT`, or to
+`proprietary`.
+
+What the tools do with it:
+
+| Tool       | `license` |
+| ---------- | --------- |
+| Snapcraft  | Put in the snap's metadata and shown in the Snap Store; Snapcraft's own metadata linter also warns about it after building |
+| Rockcraft  | Validated (SPDX or `proprietary`) and recorded in the image's `org.opencontainers.image.licenses` annotation |
+| Imagecraft, Debcraft | Accepted and recorded in the build manifest |
+| Charmcraft | Not accepted; a charm's license is its `LICENSE` file. The check does not apply |
+
+A Snapcraft project with `adopt-info` is not reported, as Snapcraft can take
+the license from the AppStream metadata of that part. This is not fixed by
+`--fix`, as craft-tidy cannot know the license.
 
 ### project-file-location
 

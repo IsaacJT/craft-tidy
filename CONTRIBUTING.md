@@ -55,8 +55,12 @@ system must be among the listed systems;
 `spread/.extension` is Snapcraft's stock backend script, changed to wait for
 cloud-init before using apt. Each task is a `task.yaml` in its own
 directory under `spread/general/`. Tasks create their projects in `$WORK`
-(`/root/work`, emptied before and after each task), since the snap can only
-reach non-hidden files in home directories, and check output with spread's
+(`/root/work/task`, emptied before and after each task), since the snap can
+only reach non-hidden files in home directories. Most of their projects
+have no license, so the suite writes a `.craft-tidy` disabling
+`metadata-license` in `/root/work`; a task that writes its own `.craft-tidy`
+must disable it there too, and the tasks testing it enable it with
+`--checks='-*,metadata-license'`. Tasks check output with spread's
 `MATCH`/`NOMATCH`. Keep the tasks up to date with every user-visible
 change: a new check needs assertions in the task of each tool it applies
 to, and support for a new craft tool needs a task of its own.
@@ -145,7 +149,8 @@ Guidelines:
    category (`project-` for the project layout and how parts use it,
    `style-` for how the project
    file is written, such as formatting and redundancy,
-   `snapcraft-` for the content of Snapcraft projects)
+   `metadata-` for project metadata, `snapcraft-` for the content of
+   Snapcraft projects)
    where it fits, and document any new category in `README.md`.
 2. Implement the `Check` trait from `craft-tidy/src/checks/mod.rs` in a new
    module under `craft-tidy/src/checks/`. `summary()` is shown by

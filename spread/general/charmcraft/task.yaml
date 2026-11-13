@@ -4,7 +4,7 @@ execute: |
   # The sections before the style-collapsed-sequences one use flow lists
   # to test other checks, so they run without it, through a .craft-tidy that
   # every project below $WORK finds.
-  echo 'checks: -style-collapsed-sequences' > "$WORK/.craft-tidy"
+  echo 'checks: -style-collapsed-sequences,-metadata-license' > "$WORK/.craft-tidy"
 
   cd "$WORK"
 
@@ -173,4 +173,12 @@ execute: |
   printf 'name: x\nparts:\n  app:\n    plugin: dump\n    source: .\n  lib:\n    plugin: dump\n    source: lib\n' > charmcraft.yaml
   craft-tidy --checks='-*,project-root-source' > out.txt
   # Except for Charmcraft, whose charm plugin builds from there.
+  test ! -s out.txt
+
+  # Projects must declare their license.
+  mkdir -p "$WORK/license"
+  cd "$WORK/license"
+  printf 'name: no-license\nsummary: x\n' > charmcraft.yaml
+  craft-tidy --checks='-*,metadata-license' > out.txt
+  # Except for Charmcraft, which does not accept a license key.
   test ! -s out.txt

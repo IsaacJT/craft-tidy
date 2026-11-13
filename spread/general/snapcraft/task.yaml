@@ -4,7 +4,7 @@ execute: |
   # The sections before the style-collapsed-sequences one use flow lists
   # to test other checks, so they run without it, through a .craft-tidy that
   # every project below $WORK finds.
-  echo 'checks: -style-collapsed-sequences' > "$WORK/.craft-tidy"
+  echo 'checks: -style-collapsed-sequences,-metadata-license' > "$WORK/.craft-tidy"
 
   # Project files are looked for in Snapcraft's order, and only the first
   # one found is linted.
@@ -183,3 +183,15 @@ execute: |
   test "$(wc -l < out.txt)" -eq 1
   MATCH "snap/snapcraft.yaml:5:13: warning: part 'app' uses the whole project directory as its source \\('\\.'\\), so it picks up build artifacts there" < out.txt
   craft-tidy --checks='-*,project-root-source' --fix | MATCH "cannot be fixed: craft-tidy cannot know which directory holds the code"
+
+  # Projects must declare their license.
+  mkdir -p "$WORK/license/snap"
+  cd "$WORK/license"
+  printf 'name: no-license\nsummary: x\n' > snap/snapcraft.yaml
+  craft-tidy --checks='-*,metadata-license' > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "snap/snapcraft.yaml:1:1: warning: the project does not declare its license; add a top-level 'license' with an SPDX expression" < out.txt
+  printf 'name: licensed\nlicense: GPL-3.0-only\n' > snap/snapcraft.yaml
+  craft-tidy --checks='-*,metadata-license' > out.txt
+  test ! -s out.txt

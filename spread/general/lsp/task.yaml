@@ -4,7 +4,7 @@ execute: |
   mkdir -p "$WORK/project/snap"
   cd "$WORK/project"
   printf 'name: test\nplugs: [b, a]\n' > snap/snapcraft.yaml
-  printf 'checks: -style-collapsed-sequences\n' > .craft-tidy
+  printf 'checks: -style-collapsed-sequences,-metadata-license\n' > .craft-tidy
 
   # A minimal LSP client: initialise the server, open the project file,
   # print the diagnostics published for it, then shut the server down.

@@ -12,7 +12,8 @@ Rust and distributed as a strictly confined snap. It is licensed
 
 The project is in early development: the CLI, the configuration system, the
 check framework and `--fix` exist. Implemented checks:
-`project-file-location`, `project-root-source`, `snapcraft-components`,
+`metadata-license`, `project-file-location`, `project-root-source`,
+`snapcraft-components`,
 `style-collapsed-sequences`, `style-line-length`,
 `style-redundant-platforms`, `style-sorted-lists`.
 
@@ -112,6 +113,12 @@ check framework and `--fix` exist. Implemented checks:
     craft-parts' `_translate_partition_env`), and `craftctl … components.X.`
     keys (metadata only, so they don't count as filling a component).
     Suggests the closest name (Levenshtein ≤ max(2, len/4))
+  - `src/checks/license.rs` - `metadata-license` (no options, no fix;
+    Snapcraft, Rockcraft, Imagecraft, Debcraft: Charmcraft's model forces
+    `license` to `None`): reports a missing top-level `license` at the
+    `name` key (or the document start), or an empty/null one at the key;
+    not for a Snapcraft project with `adopt-info` (Snapcraft adopts the
+    license from AppStream metadata, `parts/update_metadata.py`)
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments; lines it skips get an `unfixable` reason
@@ -183,7 +190,10 @@ check framework and `--fix` exist. Implemented checks:
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
   `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`, `nolint`,
   `lsp` (a Python LSP client embedded in the task);
-  projects go in `$WORK` (`/root/work`); `spread/.extension` is Snapcraft's
+  projects go in `$WORK` (`/root/work/task`); `prepare-each` writes
+  `/root/work/.craft-tidy` disabling `metadata-license` (most fixtures
+  have no license; a task's own `.craft-tidy` must disable it too, and
+  license tasks use `--checks='-*,metadata-license'`); `spread/.extension` is Snapcraft's
   template plus a cloud-init wait
 - `README.md` - user-facing introduction, usage and configuration reference
 - `CONTRIBUTING.md` - contributor workflow, code structure, how to add checks
@@ -232,6 +242,7 @@ including tests, docs, `examples/.craft-tidy` and the spread tasks.
   `project-` (project layout and how parts use it), `style-` (how the
   project file is written:
   formatting and redundancy),
+  `metadata-` (project metadata, such as `license`),
   `snapcraft-` (content of Snapcraft projects; such checks are
   Snapcraft-only via `crafts()`).
   Reuse one where it fits; a new category must be documented in `README.md`.
