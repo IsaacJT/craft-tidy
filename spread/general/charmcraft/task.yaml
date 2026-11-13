@@ -136,3 +136,33 @@ execute: |
   printf 'name: x\nparts:\n  a:\n    organize:\n      x: (component/nope)\n' > charmcraft.yaml
   craft-tidy --checks='-*,snapcraft-components' > out.txt
   test ! -s out.txt
+
+  # Platforms that build on and for their own architecture need no
+  # definition.
+  mkdir -p "$WORK/platforms"
+  cd "$WORK/platforms"
+  cat > charmcraft.yaml <<'EOF'
+  name: platforms
+  platforms:
+    amd64:
+      build-on: [amd64]
+      build-for: [amd64]
+    arm64:
+      build-on: [amd64, arm64]
+      build-for: [arm64]
+  EOF
+  craft-tidy --checks='-*,style-redundant-platforms' > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "charmcraft.yaml:3:3: warning: platform 'amd64' only builds on and for amd64, which is what 'amd64:' alone means; remove its build-on and build-for \[style-redundant-platforms\]" < out.txt
+  craft-tidy --checks='-*,style-redundant-platforms' --fix > out.txt 2> err.txt
+  test ! -s out.txt
+  cat > expected.yaml <<'EOF'
+  name: platforms
+  platforms:
+    amd64:
+    arm64:
+      build-on: [amd64, arm64]
+      build-for: [arm64]
+  EOF
+  diff -u expected.yaml charmcraft.yaml

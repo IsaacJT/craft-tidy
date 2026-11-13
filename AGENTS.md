@@ -13,7 +13,8 @@ Rust and distributed as a strictly confined snap. It is licensed
 The project is in early development: the CLI, the configuration system, the
 check framework and `--fix` exist. Implemented checks:
 `project-file-location`, `snapcraft-components`,
-`style-collapsed-sequences`, `style-line-length`, `style-sorted-lists`.
+`style-collapsed-sequences`, `style-line-length`,
+`style-redundant-platforms`, `style-sorted-lists`.
 
 ## Repository layout
 
@@ -78,6 +79,16 @@ check framework and `--fix` exist. Implemented checks:
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments; lines it skips get an `unfixable` reason
+  - `src/checks/redundant_platforms.rs` - `style-redundant-platforms` (no
+    options, all tools): top-level `platforms` entries named after a Debian
+    architecture (craft-platforms' `DebianArchitecture` list) whose only
+    keys are `build-on` (required) and `build-for` (optional, defaults to
+    the name), each exactly that architecture as a scalar or one-item list,
+    equal the null shorthand (`arm64:`) in craft-platforms'
+    `get_platforms_build_plan`. Fix removes from after the key's `:` to the
+    end of the definition; the parser reports the resulting empty value as
+    the plain scalar `~`, which verification expects. Skips definitions
+    with comments anywhere from the key to the end of their last line
   - `src/checks/sorted_lists.rs` - `style-sorted-lists` (options `keys`,
     `case-sensitive`). Only lists under `keys` (default: known unordered
     sets; never order-sensitive ones like `command-chain` or `*-parameters`).
@@ -174,7 +185,8 @@ change). The CONTRIBUTING checklists are the complete list of steps,
 including tests, docs, `examples/.craft-tidy` and the spread tasks.
 
 - Names are kebab-case with a category prefix. Existing categories:
-  `project-` (project layout), `style-` (formatting of the project file),
+  `project-` (project layout), `style-` (how the project file is written:
+  formatting and redundancy),
   `snapcraft-` (content of Snapcraft projects; such checks are
   Snapcraft-only via `crafts()`).
   Reuse one where it fits; a new category must be documented in `README.md`.

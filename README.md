@@ -257,6 +257,7 @@ non-hidden parent directory) instead.
 | `snapcraft-components`  | Snapcraft  | No      | Components used by parts must be defined under `components` |
 | `style-collapsed-sequences` | All tools | Yes | Short sequences must be on one line, longer ones one item per line |
 | `style-line-length`     | All tools  | Partly  | Lines must not be longer than `max-length` characters     |
+| `style-redundant-platforms` | All tools | Yes | Platforms that build on and for their own architecture need no definition |
 | `style-sorted-lists`    | All tools  | Yes     | Entries of unordered lists must be sorted alphabetically  |
 
 `--list-checks` marks checks that only apply to some tools, and `--explain`
@@ -264,8 +265,9 @@ names them.
 
 Check names start with their category, so whole categories can be selected
 with globs such as `--checks='-*,style-*'`: `project-` checks are about the
-layout of the project, `style-` checks about the formatting of the project
-file, and `snapcraft-` checks about the content of Snapcraft projects.
+layout of the project, `style-` checks about how the project file is
+written (its formatting, and redundant definitions), and `snapcraft-`
+checks about the content of Snapcraft projects.
 
 Run `craft-tidy --list-checks --checks='*'` to list all checks and
 `craft-tidy --explain CHECK` for details.
@@ -381,6 +383,37 @@ them`.
 | Option       | Type    | Default | Description                         |
 | ------------ | ------- | ------- | ----------------------------------- |
 | `max-length` | integer | `80`    | Maximum number of characters per line |
+
+### style-redundant-platforms
+
+Reports platforms whose definition only repeats what their name already
+says. A platform named after an architecture with no definition builds on
+and for that architecture, so this:
+
+```yaml
+platforms:
+  arm64:
+    build-on: [arm64]
+    build-for: [arm64]
+```
+
+means the same as this, for every craft tool:
+
+```yaml
+platforms:
+  arm64:
+```
+
+A definition is redundant if the platform's name is an architecture
+(`amd64`, `arm64`, `armhf`, `i386`, `ppc64el`, `riscv64` or `s390x`) and its
+only keys are `build-on` and `build-for`, each that same architecture alone
+(as a string or a one-item list). `build-for` may also be left out, as it
+defaults to the platform's name. Platforms building on or for several or
+other architectures, with other names (such as Charmcraft's
+`ubuntu@24.04:amd64`) or other keys, and definitions containing comments,
+are left alone.
+
+With `--fix`, the definition is removed.
 
 ### style-sorted-lists
 
