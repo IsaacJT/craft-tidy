@@ -11,7 +11,9 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull request runs are cancelled; runs on main are not, so a
+  # publish in progress is never interrupted.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -51,10 +53,20 @@ jobs:
         run: cargo +${{ matrix.rust }} test
 
   snap:
-    name: Build and test the snap
-    # snapcraft test runs the spread tests on the runner itself; its system
-    # must be one of the systems in snapcraft-test.yaml.
-    runs-on: ubuntu-24.04
+    name: Build and test the snap (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Each architecture is built natively. snapcraft test runs the
+          # spread tests on the runner itself and only selects the system
+          # matching the runner's OS, which must be one of the systems in
+          # snapcraft-test.yaml.
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - name: Pack and run the spread tests
@@ -65,6 +77,32 @@ jobs:
       - name: Upload the snap
         uses: actions/upload-artifact@v4
         with:
-          name: craft-tidy-snap
+          name: craft-tidy-snap-${{ matrix.arch }}
           path: ${{ steps.pack.outputs.snaps }}
           if-no-files-found: error
+
+  publish:
+    name: Publish to edge (${{ matrix.arch }})
+    # Only commits on main are published, once every check has passed.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, test, snap]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    environment: snap-store
+    steps:
+      - name: Download the snap
+        uses: actions/download-artifact@v4
+        with:
+          name: craft-tidy-snap-${{ matrix.arch }}
+      - name: Find the snap
+        id: snap
+        run: echo "path=$(ls ./*.snap)" >> "$GITHUB_OUTPUT"
+      - name: Upload and release to edge
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.snap.outputs.path }}
+          release: edge

@@ -85,14 +85,21 @@ check framework and `--fix` exist. Implemented checks:
 - `examples/.craft-tidy` - commented example configuration, verified by
   `craft-tidy/tests/example.rs`
 - `snap/snapcraft.yaml` - snap packaging (base `core26`, `rust` plugin,
-  part source `craft-tidy/`, `home` plug)
+  part source `craft-tidy/`, `home` plug, `platforms` amd64 and arm64;
+  `grade: devel`, which the store only allows on `edge`/`beta`)
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
-  spread), uploading the snap as an artifact. The lint and test jobs use
-  `ubuntu-latest`; only the snap job is pinned to `ubuntu-24.04`, because
-  on CI `snapcraft test` runs on the runner itself and only selects
-  `craft:<runner OS>`, so that system must stay in `snapcraft-test.yaml`
+  spread) per architecture, uploading each snap as an artifact
+  (`craft-tidy-snap-<arch>`). The lint and test jobs use `ubuntu-latest`;
+  the snap job is a matrix of `ubuntu-24.04` (amd64) and `ubuntu-24.04-arm`
+  (arm64), building natively, because on CI `snapcraft test` runs on the
+  runner itself and only selects `craft:<runner OS>`, so that system must
+  stay in `snapcraft-test.yaml`. The `publish` job (pushes to `main` only,
+  `needs` all others, environment `snap-store`, secret
+  `SNAPCRAFT_STORE_CREDENTIALS`) releases both snaps to `edge` with
+  `snapcore/action-publish@v1`. Architectures must match `platforms` in
+  `snap/snapcraft.yaml` and both matrices
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,

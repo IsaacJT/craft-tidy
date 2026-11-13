@@ -13,6 +13,12 @@ license: GPL-3.0-only
 grade: devel
 confinement: strict
 
+# Each platform is built natively on its own architecture (see
+# .github/workflows/ci.yaml).
+platforms:
+  amd64:
+  arm64:
+
 apps:
   craft-tidy:
     command: bin/craft-tidy

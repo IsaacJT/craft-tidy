@@ -224,9 +224,31 @@ request, and on demand (`workflow_dispatch`):
 | ----------------- | ---------------------------------------------------------------------------- |
 | Format and lint   | `ubuntu-latest`: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`          |
 | Test              | `ubuntu-latest`: `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
-| Build and test the snap | [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test` on an `ubuntu-24.04` runner; the snap is uploaded as the `craft-tidy-snap` artifact |
+| Build and test the snap | For amd64 (`ubuntu-24.04` runner) and arm64 (`ubuntu-24.04-arm` runner), each built natively: [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test`; the snaps are uploaded as the `craft-tidy-snap-amd64` and `craft-tidy-snap-arm64` artifacts |
+| Publish to edge   | Pushes to `main` only, after all other jobs pass: [`snapcore/action-publish`](https://github.com/snapcore/action-publish) uploads both snaps to the Snap Store and releases them to `edge` |
 
-When raising `rust-version`, update the matrix in the workflow too.
+When raising `rust-version`, update the matrix in the workflow too. When
+adding an architecture, add it to `platforms` in `snap/snapcraft.yaml` and
+to both the snap and the publish matrix.
+
+Publishing needs, once, in the repository settings on GitHub:
+
+1. The `craft-tidy` name registered in the Snap Store
+   (`snapcraft register craft-tidy`).
+2. An environment named `snap-store` (Settings → Environments), which the
+   publish job uses; add protection rules there if releases should need
+   approval.
+3. A `SNAPCRAFT_STORE_CREDENTIALS` secret in that environment, created
+   with:
+
+   ```sh
+   snapcraft export-login --snaps=craft-tidy --channels=edge \
+     --acls=package_access,package_push,package_update,package_release -
+   ```
+
+Pull requests (including from forks) never publish and have no access to
+the secret. Runs on `main` are not cancelled by newer pushes, so a publish
+is never interrupted.
 
 ## Submitting changes
 

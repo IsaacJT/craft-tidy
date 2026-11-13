@@ -15,6 +15,15 @@ craft-tidy is written in Rust and is itself distributed as a snap.
 
 ## Installation
 
+### From the Snap Store (edge)
+
+Every commit on `main` that passes CI is published to the `edge` channel,
+for amd64 and arm64:
+
+```sh
+sudo snap install craft-tidy --edge
+```
+
 ### From source (snap)
 
 ```sh
