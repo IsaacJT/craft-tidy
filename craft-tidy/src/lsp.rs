@@ -14,14 +14,18 @@ use std::path::{Path, PathBuf};
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
-    DiagnosticSeverity, NumberOrString, Position, PublishDiagnosticsParams, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
+    CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand,
+    CodeActionProviderCapability, DiagnosticSeverity, NumberOrString, Position,
+    PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextEdit, Uri, WorkspaceEdit,
 };
 
 use crate::app;
 use crate::checks::{self, Check, Severity};
+use crate::config::Settings;
 use crate::craft::Craft;
 use crate::error::Error;
+use crate::nolint;
 use crate::project::Project;
 
 /// The `source` of the diagnostics the server publishes.
@@ -57,6 +61,13 @@ pub fn serve(connection: Connection) -> Result<(), String> {
 fn capabilities() -> ServerCapabilities {
     ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+            code_action_kinds: Some(vec![
+                CodeActionKind::QUICKFIX,
+                CodeActionKind::SOURCE_FIX_ALL,
+            ]),
+            ..CodeActionOptions::default()
+        })),
         ..ServerCapabilities::default()
     }
 }
@@ -104,6 +115,27 @@ impl Server<'_> {
     }
 
     fn handle_request(&mut self, request: Request) -> Response {
+        use lsp_types::request::{CodeActionRequest, Request as _};
+        if request.method == CodeActionRequest::METHOD {
+            let params: lsp_types::CodeActionParams = match parse(request.params) {
+                Ok(params) => params,
+                Err(error) => {
+                    return Response::new_err(request.id, ErrorCode::InvalidParams as i32, error);
+                }
+            };
+            let uri = &params.text_document.uri;
+            let actions = match self.documents.get(uri.as_str()) {
+                Some(document) => code_actions(
+                    &self.registry,
+                    uri,
+                    &document.text,
+                    params.range,
+                    params.context.only.as_deref(),
+                ),
+                None => Vec::new(),
+            };
+            return Response::new_ok(request.id, actions);
+        }
         Response::new_err(
             request.id,
             ErrorCode::MethodNotFound as i32,
@@ -185,6 +217,64 @@ fn parse<T: serde::de::DeserializeOwned>(params: serde_json::Value) -> Result<T,
     serde_json::from_value(params).map_err(|error| error.to_string())
 }
 
+/// The result of checking a document.
+enum Analysis {
+    /// Not a craft project file.
+    NotProject,
+    /// The configuration or the YAML is invalid, so it could not be
+    /// checked.
+    Invalid(lsp_types::Diagnostic),
+    Checked {
+        project: Project,
+        settings: Settings,
+        findings: Vec<checks::Diagnostic>,
+    },
+}
+
+/// Checks the document `uri` with contents `text`.
+fn analyse(registry: &[Box<dyn Check>], uri: &Uri, text: &str) -> Analysis {
+    let Some(path) = uri_to_path(uri).filter(|path| Craft::from_path(path).is_some()) else {
+        return Analysis::NotProject;
+    };
+    let lines = LineIndex::new(text);
+    let invalid = |code: &str, offset: usize, message: String| {
+        Analysis::Invalid(lsp_types::Diagnostic {
+            range: lines.range(offset..offset),
+            severity: Some(DiagnosticSeverity::ERROR),
+            code: Some(NumberOrString::String(code.to_owned())),
+            source: Some(SOURCE.to_owned()),
+            message,
+            ..lsp_types::Diagnostic::default()
+        })
+    };
+    let settings = match app::settings_for(&path).and_then(|settings| {
+        checks::validate_options(registry, &settings.check_options)?;
+        Ok(settings)
+    }) {
+        Ok(settings) => settings,
+        Err(error) => return invalid(CONFIG_CODE, 0, error.to_string()),
+    };
+    let project = match Project::new(path, text) {
+        Ok(project) => project,
+        Err(Error::Syntax { error, .. }) => {
+            let offset = lines.offset(error.line, error.column);
+            return invalid(
+                SYNTAX_CODE,
+                offset,
+                format!("invalid YAML: {}", error.message),
+            );
+        }
+        Err(error) => return invalid(SYNTAX_CODE, 0, error.to_string()),
+    };
+    let enabled = checks::enabled(registry, &settings);
+    let findings = checks::run(&enabled, &project, &settings);
+    Analysis::Checked {
+        project,
+        settings,
+        findings,
+    }
+}
+
 /// The findings for the document `uri` with contents `text`, or `None` if
 /// it is not a craft project file.
 pub fn diagnostics(
@@ -192,63 +282,208 @@ pub fn diagnostics(
     uri: &Uri,
     text: &str,
 ) -> Option<Vec<lsp_types::Diagnostic>> {
-    let path = uri_to_path(uri)?;
-    Craft::from_path(&path)?;
-    let lines = LineIndex::new(text);
-    let whole_file = |code: &str, message: String| lsp_types::Diagnostic {
-        range: lines.range(0..0),
-        severity: Some(DiagnosticSeverity::ERROR),
-        code: Some(NumberOrString::String(code.to_owned())),
+    match analyse(registry, uri, text) {
+        Analysis::NotProject => None,
+        Analysis::Invalid(diagnostic) => Some(vec![diagnostic]),
+        Analysis::Checked { findings, .. } => {
+            let lines = LineIndex::new(text);
+            Some(findings.iter().map(|f| to_lsp(f, &lines)).collect())
+        }
+    }
+}
+
+/// The byte range of the source a finding is about.
+fn span_of(finding: &checks::Diagnostic, lines: &LineIndex<'_>) -> Range<usize> {
+    match (&finding.span, finding.location) {
+        (Some(span), _) => span.clone(),
+        (None, Some((line, column))) => {
+            let offset = lines.offset(line, column);
+            offset..offset
+        }
+        (None, None) => 0..0,
+    }
+}
+
+fn to_lsp(finding: &checks::Diagnostic, lines: &LineIndex<'_>) -> lsp_types::Diagnostic {
+    lsp_types::Diagnostic {
+        range: lines.range(span_of(finding, lines)),
+        severity: Some(match finding.severity {
+            Severity::Error => DiagnosticSeverity::ERROR,
+            Severity::Warning => DiagnosticSeverity::WARNING,
+        }),
+        code: Some(NumberOrString::String(finding.check.to_owned())),
         source: Some(SOURCE.to_owned()),
-        message,
+        message: finding.message.clone(),
         ..lsp_types::Diagnostic::default()
+    }
+}
+
+/// The code actions for the byte range `range` of the document `uri` with
+/// contents `text`: a quick fix and a suppression for each finding there,
+/// and fixing all findings of the file. `only`, if given, limits the kinds
+/// of actions returned.
+pub fn code_actions(
+    registry: &[Box<dyn Check>],
+    uri: &Uri,
+    text: &str,
+    range: lsp_types::Range,
+    only: Option<&[CodeActionKind]>,
+) -> Vec<CodeActionOrCommand> {
+    let Analysis::Checked {
+        project,
+        settings,
+        findings,
+    } = analyse(registry, uri, text)
+    else {
+        return Vec::new();
+    };
+    let wanted = |kind: &CodeActionKind| {
+        only.is_none_or(|only| {
+            only.iter().any(|prefix| {
+                kind.as_str() == prefix.as_str()
+                    || kind.as_str().starts_with(&format!("{}.", prefix.as_str()))
+            })
+        })
+    };
+    let lines = LineIndex::new(text);
+    let requested = lines.offset_of(range.start)..lines.offset_of(range.end);
+    let action = |title: String,
+                  kind: CodeActionKind,
+                  fixed: &str,
+                  diagnostics: Option<Vec<lsp_types::Diagnostic>>,
+                  preferred: bool| {
+        let edit = minimal_edit(text, fixed, &lines);
+        CodeActionOrCommand::CodeAction(CodeAction {
+            title,
+            kind: Some(kind),
+            diagnostics,
+            edit: Some(WorkspaceEdit {
+                changes: Some([(uri.clone(), vec![edit])].into_iter().collect()),
+                ..WorkspaceEdit::default()
+            }),
+            is_preferred: preferred.then_some(true),
+            ..CodeAction::default()
+        })
     };
 
-    let settings = match app::settings_for(&path).and_then(|settings| {
-        checks::validate_options(registry, &settings.check_options)?;
-        Ok(settings)
-    }) {
-        Ok(settings) => settings,
-        Err(error) => return Some(vec![whole_file(CONFIG_CODE, error.to_string())]),
-    };
-    let project = match Project::new(path, text) {
-        Ok(project) => project,
-        Err(Error::Syntax { error, .. }) => {
-            let offset = lines.offset(error.line, error.column);
-            return Some(vec![lsp_types::Diagnostic {
-                range: lines.range(offset..offset),
-                message: format!("invalid YAML: {}", error.message),
-                ..whole_file(SYNTAX_CODE, String::new())
-            }]);
+    let mut actions = Vec::new();
+    if wanted(&CodeActionKind::QUICKFIX) {
+        for finding in &findings {
+            let Some(span) = &finding.span else {
+                continue;
+            };
+            // The finding is at the cursor, or within the selection.
+            if span.start > requested.end || requested.start > span.end {
+                continue;
+            }
+            let diagnostics = Some(vec![to_lsp(finding, &lines)]);
+            if let Some(check) = registry.iter().find(|c| c.name() == finding.check)
+                && let Some(fixed) =
+                    checks::fix_span(check.as_ref(), &project, &settings, span.clone())
+            {
+                actions.push(action(
+                    format!("Fix: {}", finding.message),
+                    CodeActionKind::QUICKFIX,
+                    fixed.source(),
+                    diagnostics.clone(),
+                    true,
+                ));
+            }
+            if let Some(suppressed) = suppress(registry, &project, &settings, &findings, finding) {
+                actions.push(action(
+                    format!(
+                        "Suppress {} on this line with NOLINTNEXTLINE",
+                        finding.check
+                    ),
+                    CodeActionKind::QUICKFIX,
+                    &suppressed,
+                    diagnostics,
+                    false,
+                ));
+            }
         }
-        Err(error) => return Some(vec![whole_file(SYNTAX_CODE, error.to_string())]),
-    };
-    let enabled = checks::enabled(registry, &settings);
-    Some(
-        checks::run(&enabled, &project, &settings)
-            .into_iter()
-            .map(|diagnostic| {
-                let span = match (&diagnostic.span, diagnostic.location) {
-                    (Some(span), _) => span.clone(),
-                    (None, Some((line, column))) => {
-                        let offset = lines.offset(line, column);
-                        offset..offset
-                    }
-                    (None, None) => 0..0,
-                };
-                lsp_types::Diagnostic {
-                    range: lines.range(span),
-                    severity: Some(match diagnostic.severity {
-                        Severity::Error => DiagnosticSeverity::ERROR,
-                        Severity::Warning => DiagnosticSeverity::WARNING,
-                    }),
-                    code: Some(NumberOrString::String(diagnostic.check.to_owned())),
-                    source: Some(SOURCE.to_owned()),
-                    message: diagnostic.message,
-                    ..lsp_types::Diagnostic::default()
-                }
-            })
-            .collect(),
+    }
+    if wanted(&CodeActionKind::SOURCE_FIX_ALL) {
+        let enabled = checks::enabled(registry, &settings);
+        if let Some(fixed) = checks::fix(&enabled, &project, &settings) {
+            actions.push(action(
+                "Fix all craft-tidy problems".to_owned(),
+                CodeActionKind::SOURCE_FIX_ALL,
+                fixed.source(),
+                None,
+                false,
+            ));
+        }
+    }
+    actions
+}
+
+/// The source of `project` with `finding` suppressed by a
+/// `# NOLINTNEXTLINE(check)` comment on the line above it, if that keeps
+/// the data unchanged and suppresses exactly that finding. (Comments
+/// cannot be added inside block scalars, for example.)
+fn suppress(
+    registry: &[Box<dyn Check>],
+    project: &Project,
+    settings: &Settings,
+    findings: &[checks::Diagnostic],
+    finding: &checks::Diagnostic,
+) -> Option<String> {
+    if finding.check == nolint::NAME {
+        return None;
+    }
+    let document = &project.document;
+    let source = document.source();
+    let line = document.line_index(finding.span.as_ref()?.start);
+    let start = document.line_range(line).start;
+    let indent: String = document
+        .line(line)
+        .chars()
+        .take_while(|c| *c == ' ' || *c == '\t')
+        .collect();
+    let comment = format!(
+        "{indent}# NOLINTNEXTLINE({}){}",
+        finding.check,
+        document.newline()
+    );
+    let suppressed = format!("{}{comment}{}", &source[..start], &source[start..]);
+    let edited = Project::new(project.path.clone(), suppressed.as_str()).ok()?;
+    if edited.document.value() != document.value() {
+        return None;
+    }
+    let enabled = checks::enabled(registry, settings);
+    let remaining = checks::run(&enabled, &edited, settings);
+    let gone = |f: &checks::Diagnostic| f.check == finding.check && f.message == finding.message;
+    let before = findings.iter().filter(|f| gone(f)).count();
+    let after = remaining.iter().filter(|f| gone(f)).count();
+    (remaining.len() + 1 == findings.len() && after + 1 == before).then_some(suppressed)
+}
+
+/// A single edit turning `old` into `new`: the replacement of the part
+/// between their common prefix and suffix.
+fn minimal_edit(old: &str, new: &str, lines: &LineIndex<'_>) -> TextEdit {
+    let mut prefix = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !old.is_char_boundary(prefix) || !new.is_char_boundary(prefix) {
+        prefix -= 1;
+    }
+    let max_suffix = old.len().min(new.len()) - prefix;
+    let mut suffix = old
+        .bytes()
+        .rev()
+        .zip(new.bytes().rev())
+        .take(max_suffix)
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !old.is_char_boundary(old.len() - suffix) || !new.is_char_boundary(new.len() - suffix) {
+        suffix -= 1;
+    }
+    TextEdit::new(
+        lines.range(prefix..old.len() - suffix),
+        new[prefix..new.len() - suffix].to_owned(),
     )
 }
 

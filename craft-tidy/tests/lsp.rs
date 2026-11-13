@@ -35,6 +35,10 @@ impl Client {
         };
         let result = client.request("initialize", json!({"capabilities": {}}));
         assert_eq!(result["capabilities"]["textDocumentSync"], 1);
+        assert_eq!(
+            result["capabilities"]["codeActionProvider"]["codeActionKinds"],
+            json!(["quickfix", "source.fixAll"])
+        );
         client.notify("initialized", json!({}));
         client
     }
@@ -331,4 +335,202 @@ fn configuration_files_need_not_exist() {
     assert_eq!(diagnostics.len(), 2);
     client.shutdown();
     fs::remove_dir_all(dir.path()).unwrap();
+}
+
+// Code actions
+
+/// The code actions offered for `range` (`[start line, start character,
+/// end line, end character]`) of `uri`, limited to the kinds in `only`.
+fn code_actions(
+    client: &mut Client,
+    uri: &str,
+    range: [u32; 4],
+    only: Option<&[&str]>,
+) -> Vec<Value> {
+    let mut context = json!({"diagnostics": []});
+    if let Some(only) = only {
+        context["only"] = json!(only);
+    }
+    let result = client.request(
+        "textDocument/codeAction",
+        json!({
+            "textDocument": {"uri": uri},
+            "range": {
+                "start": {"line": range[0], "character": range[1]},
+                "end": {"line": range[2], "character": range[3]},
+            },
+            "context": context,
+        }),
+    );
+    result.as_array().unwrap().clone()
+}
+
+/// `text` with the single edit of `action` applied.
+fn apply(text: &str, uri: &str, action: &Value) -> String {
+    let edits = action["edit"]["changes"][uri].as_array().unwrap();
+    assert_eq!(edits.len(), 1);
+    let edit = &edits[0];
+    let lines = LineIndex::new(text);
+    let position = |p: &Value| {
+        lines.offset_of(Position::new(
+            p["line"].as_u64().unwrap() as u32,
+            p["character"].as_u64().unwrap() as u32,
+        ))
+    };
+    let range = position(&edit["range"]["start"])..position(&edit["range"]["end"]);
+    let mut result = text.to_owned();
+    result.replace_range(range, edit["newText"].as_str().unwrap());
+    result
+}
+
+fn titles(actions: &[Value]) -> Vec<(String, String)> {
+    actions
+        .iter()
+        .map(|a| {
+            (
+                a["kind"].as_str().unwrap().to_owned(),
+                a["title"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// A client with `text` open as a project file, and its URI.
+fn open_project(text: &str) -> (Client, String, tempfile::TempDir) {
+    let dir = project(Some("checks: -style-collapsed-sequences\n"));
+    let file = uri(&dir.path().join("snap/snapcraft.yaml"));
+    let client = Client::start();
+    client.open(&file, text);
+    client.diagnostics();
+    (client, file, dir)
+}
+
+#[test]
+fn offers_fixes_and_suppressions_for_findings_at_the_cursor() {
+    let text = "name: test\nplugs: [b, a]\nslots: [d, c]\n";
+    let (mut client, file, _dir) = open_project(text);
+    let actions = code_actions(&mut client, &file, [1, 9, 1, 9], None);
+    assert_eq!(
+        titles(&actions),
+        [
+            (
+                "quickfix".to_owned(),
+                "Fix: entries of 'plugs' are not sorted: 'a' should come before 'b'".to_owned()
+            ),
+            (
+                "quickfix".to_owned(),
+                "Suppress style-sorted-lists on this line with NOLINTNEXTLINE".to_owned()
+            ),
+            (
+                "source.fixAll".to_owned(),
+                "Fix all craft-tidy problems".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(actions[0]["isPreferred"], true);
+    assert_eq!(actions[0]["diagnostics"][0]["code"], "style-sorted-lists");
+    // Each fixes what it says, and only that.
+    assert_eq!(
+        apply(text, &file, &actions[0]),
+        "name: test\nplugs: [a, b]\nslots: [d, c]\n"
+    );
+    assert_eq!(
+        apply(text, &file, &actions[1]),
+        "name: test\n# NOLINTNEXTLINE(style-sorted-lists)\nplugs: [b, a]\nslots: [d, c]\n"
+    );
+    assert_eq!(
+        apply(text, &file, &actions[2]),
+        "name: test\nplugs: [a, b]\nslots: [c, d]\n"
+    );
+    // The fix is a minimal edit of the list, not of the whole file.
+    let edit = &actions[0]["edit"]["changes"][&file][0];
+    assert_eq!(edit["range"]["start"], json!({"line": 1, "character": 8}));
+    assert_eq!(edit["range"]["end"], json!({"line": 1, "character": 12}));
+    client.shutdown();
+}
+
+#[test]
+fn a_selection_covers_every_finding_in_it() {
+    let text = "plugs: [b, a]\nslots: [d, c]\n";
+    let (mut client, file, _dir) = open_project(text);
+    let actions = code_actions(&mut client, &file, [0, 0, 2, 0], Some(&["quickfix"]));
+    assert_eq!(actions.len(), 4);
+    // Away from any finding, only fixing the whole file is offered.
+    let text = "name: test\nplugs: [b, a]\n";
+    client.change(&file, 2, text);
+    client.diagnostics();
+    let actions = code_actions(&mut client, &file, [0, 2, 0, 2], None);
+    assert_eq!(titles(&actions)[0].0, "source.fixAll");
+    assert_eq!(actions.len(), 1);
+    client.shutdown();
+}
+
+#[test]
+fn only_limits_the_kinds_of_actions() {
+    let text = "plugs: [b, a]\n";
+    let (mut client, file, _dir) = open_project(text);
+    let kinds = |client: &mut Client, only: &[&str]| -> Vec<String> {
+        titles(&code_actions(client, &file, [0, 9, 0, 9], Some(only)))
+            .into_iter()
+            .map(|(kind, _)| kind)
+            .collect()
+    };
+    assert_eq!(kinds(&mut client, &["source.fixAll"]), ["source.fixAll"]);
+    assert_eq!(kinds(&mut client, &["source"]), ["source.fixAll"]);
+    assert_eq!(kinds(&mut client, &["quickfix"]), ["quickfix", "quickfix"]);
+    assert!(kinds(&mut client, &["refactor"]).is_empty());
+    assert!(kinds(&mut client, &["sourcefoo"]).is_empty());
+    client.shutdown();
+}
+
+#[test]
+fn findings_that_cannot_be_fixed_can_still_be_suppressed() {
+    let text = "name: test\nparts:\n  app:\n    plugin: dump\n    source: .\n";
+    let (mut client, file, _dir) = open_project(text);
+    let actions = code_actions(&mut client, &file, [4, 12, 4, 12], None);
+    assert_eq!(
+        titles(&actions),
+        [(
+            "quickfix".to_owned(),
+            "Suppress project-root-source on this line with NOLINTNEXTLINE".to_owned()
+        )]
+    );
+    // The comment is indented like the line.
+    assert_eq!(
+        apply(text, &file, &actions[0]),
+        "name: test\nparts:\n  app:\n    plugin: dump\n    \
+         # NOLINTNEXTLINE(project-root-source)\n    source: .\n"
+    );
+    client.shutdown();
+}
+
+#[test]
+fn does_not_offer_suppressions_that_would_not_work() {
+    // A comment inside a literal block would be part of the text.
+    let long = "x".repeat(90);
+    let text =
+        format!("name: test\nparts:\n  app:\n    override-build: |\n      echo\n      {long}\n");
+    let (mut client, file, _dir) = open_project(&text);
+    let actions = code_actions(&mut client, &file, [5, 85, 5, 85], Some(&["quickfix"]));
+    assert!(actions.is_empty(), "{actions:?}");
+    // Mistakes in NOLINT comments are not suppressed with NOLINT.
+    let text = "name: test\n# NOLINTEND\n";
+    client.change(&file, 2, text);
+    client.diagnostics();
+    let actions = code_actions(&mut client, &file, [1, 3, 1, 3], Some(&["quickfix"]));
+    assert!(actions.is_empty(), "{actions:?}");
+    client.shutdown();
+}
+
+#[test]
+fn code_actions_need_an_open_checked_document() {
+    let mut client = Client::start();
+    let dir = project(None);
+    let file = uri(&dir.path().join("snap/snapcraft.yaml"));
+    assert!(code_actions(&mut client, &file, [0, 0, 0, 0], None).is_empty());
+    // Invalid YAML cannot be fixed.
+    client.open(&file, "plugs: [b, a\n");
+    client.diagnostics();
+    assert!(code_actions(&mut client, &file, [0, 0, 0, 0], None).is_empty());
+    client.shutdown();
 }

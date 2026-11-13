@@ -44,7 +44,13 @@ check framework and `--fix` exist. Implemented checks:
     with codes `craft-tidy-config`/`craft-tidy-syntax`. `LineIndex`
     converts byte offsets to LSP positions (UTF-16 columns) and back;
     `uri_to_path` decodes `file:` URIs (lsp-types 0.97's `Uri` cannot).
-    Unknown requests get `MethodNotFound`
+    `textDocument/codeAction` (`code_actions()`, kinds `quickfix` and
+    `source.fixAll`, honouring `context.only`): per finding overlapping
+    the range a fix via `checks::fix_span` and a `NOLINTNEXTLINE`
+    suppression (only if the data is unchanged and exactly that finding
+    disappears), plus fix-all via `checks::fix`; edits are sent as one
+    minimal `TextEdit` (common prefix/suffix). Unknown requests get
+    `MethodNotFound`
   - `src/nolint.rs` - `Nolint::parse(document)`: `# NOLINT`,
     `# NOLINTNEXTLINE`, `# NOLINTBEGIN`/`# NOLINTEND`, each optionally
     with `(globs)` (no `-` globs, not empty) and trailing text; only real

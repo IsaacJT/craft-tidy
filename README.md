@@ -185,6 +185,16 @@ output; it is not meant to be run by hand.
   the file.
 - Findings are underlined where they apply, with the check's name as the
   code, as warnings or (with `warnings-as-errors`) errors.
+- Code actions (quick fixes) are offered for findings at the cursor or in
+  the selection:
+  - **Fix: …** fixes that finding alone, as `--fix` would, for findings
+    that can be fixed;
+  - **Suppress … on this line with NOLINTNEXTLINE** adds a
+    `# NOLINTNEXTLINE(check)` comment above the line, where a comment
+    there keeps the data unchanged and suppresses the finding (not, for
+    example, inside a `|` block);
+  - **Fix all craft-tidy problems** (kind `source.fixAll`) fixes the whole
+    file like `--fix`; editors can run it on save.
 
 `lsp` must come first on the command line; to lint a directory named
 `lsp`, pass it as `./lsp`. As with the command line, the snap can only read
