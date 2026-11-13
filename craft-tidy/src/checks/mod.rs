@@ -7,6 +7,11 @@ use std::fmt;
 use crate::config::{CheckOptions, OptionValue, Settings};
 use crate::error::Error;
 use crate::project::Project;
+use crate::yaml::Document;
+
+/// Upper bound on fixing passes, in case fixes of different checks keep
+/// undoing each other.
+const MAX_FIX_PASSES: usize = 10;
 
 /// Severity of a reported finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -124,6 +129,12 @@ pub trait Check {
         Ok(())
     }
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic>;
+    /// Fixes as many of the reported problems as possible, returning the
+    /// fixed document, or `None` if nothing could be fixed. Implementations
+    /// should use [`crate::fix::apply_edits`] so that each edit is verified.
+    fn fix(&self, _ctx: &Context<'_>) -> Option<Document> {
+        None
+    }
 }
 
 /// All available checks, sorted by name.
@@ -194,4 +205,33 @@ pub fn run(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Vec
     }
     diagnostics.sort_by_key(|d| (d.location, d.check));
     diagnostics
+}
+
+/// Applies the fixes of `checks` to `project` and returns the fixed project,
+/// or `None` if nothing changed.
+///
+/// Checks fix in turn, each seeing the result of the previous ones. Passes
+/// are repeated until none of the checks changes anything, since one fix can
+/// enable another (e.g. a list made shorter by one check now fits on a line).
+pub fn fix(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Option<Project> {
+    let mut current = project.clone();
+    for _ in 0..MAX_FIX_PASSES {
+        let mut changed = false;
+        for check in checks {
+            let ctx = Context {
+                project: &current,
+                options: &settings.check_options,
+            };
+            if let Some(document) = check.fix(&ctx)
+                && document.source() != current.source()
+            {
+                current.document = document;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    (current.source() != project.source()).then_some(current)
 }

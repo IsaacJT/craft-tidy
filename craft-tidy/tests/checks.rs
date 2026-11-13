@@ -366,6 +366,106 @@ fn checks_receive_their_own_options_only() {
     );
 }
 
+// Fixing
+
+fn project_with(source: &str) -> Project {
+    Project::new("snap/snapcraft.yaml", source).unwrap()
+}
+
+fn fix_with(checks: Vec<Box<dyn Check>>, source: &str) -> Option<String> {
+    let settings = Settings::defaults();
+    let enabled = checks::enabled(&checks, &settings);
+    checks::fix(&enabled, &project_with(source), &settings).map(|p| p.source().to_owned())
+}
+
+#[test]
+fn fix_applies_the_fixes_of_enabled_checks() {
+    let fixed = checks::fix(
+        &checks::enabled(
+            &[FakeCheck::new("parts-a").replacing("old", "new").boxed()],
+            &Settings::defaults(),
+        ),
+        &project_with("a: old\nb: [old]\n"),
+        &Settings::defaults(),
+    )
+    .unwrap();
+    assert_eq!(fixed.path, std::path::Path::new("snap/snapcraft.yaml"));
+    assert_eq!(fixed.source(), "a: new\nb: [new]\n");
+    assert!(fixed.document.root().is_some());
+}
+
+#[test]
+fn fix_returns_none_when_nothing_changes() {
+    assert_eq!(
+        fix_with(vec![FakeCheck::new("parts-a").boxed()], "a: x\n"),
+        None
+    );
+    assert_eq!(
+        fix_with(
+            vec![FakeCheck::new("parts-a").replacing("old", "new").boxed()],
+            "a: x\n"
+        ),
+        None
+    );
+    assert_eq!(fix_with(vec![], "a: old\n"), None);
+}
+
+#[test]
+fn fix_skips_disabled_checks() {
+    let check = FakeCheck::new("parts-a").replacing("old", "new");
+    let fixes = check.fixes.clone();
+    let registry = vec![check.boxed()];
+    let settings = settings("-parts-a", "");
+    let fixed = checks::fix(
+        &checks::enabled(&registry, &settings),
+        &project_with("a: old\n"),
+        &settings,
+    );
+    assert!(fixed.is_none());
+    assert_eq!(fixes.get(), 0);
+}
+
+#[test]
+fn later_checks_see_earlier_fixes() {
+    let fixed = fix_with(
+        vec![
+            FakeCheck::new("a-first").replacing("one", "two").boxed(),
+            FakeCheck::new("b-second").replacing("two", "three").boxed(),
+        ],
+        "a: one\n",
+    );
+    assert_eq!(fixed.as_deref(), Some("a: three\n"));
+}
+
+#[test]
+fn fixing_repeats_until_nothing_changes() {
+    // b-second runs first but can only act once a-first has fixed.
+    let fixed = fix_with(
+        vec![
+            FakeCheck::new("b-second").replacing("two", "three").boxed(),
+            FakeCheck::new("a-first").replacing("one", "two").boxed(),
+        ],
+        "a: one\n",
+    );
+    assert_eq!(fixed.as_deref(), Some("a: three\n"));
+}
+
+#[test]
+fn conflicting_fixes_terminate() {
+    let check = FakeCheck::new("a-ping").replacing("ping", "pong");
+    let fixes = check.fixes.clone();
+    let fixed = fix_with(
+        vec![
+            check.boxed(),
+            FakeCheck::new("b-pong").replacing("pong", "ping").boxed(),
+        ],
+        "a: ping\n",
+    );
+    // Each pass turns ping into pong and back, so nothing changes overall.
+    assert_eq!(fixed, None);
+    assert!((2..=10).contains(&fixes.get()), "{} passes", fixes.get());
+}
+
 #[test]
 fn wrongly_typed_options_are_ignored_by_typed_accessors() {
     let registry = vec![FakeCheck::new("parts-a").boxed()];

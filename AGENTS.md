@@ -33,7 +33,11 @@ are implemented yet).
     `Value` model used to verify fixes. Built from
     `serde_saphyr::granit_parser` events (no extra dependency)
   - `src/checks/mod.rs` - `Check` trait, `Diagnostic`, `registry()`,
-    `enabled()`, `run()`
+    `enabled()`, `validate_options()`, `run()`, `fix()` (repeats passes over
+    the enabled checks' `Check::fix` until nothing changes, max 10)
+  - `src/fix.rs` - `Edit` and `apply_edits()`: applies edits from the end of
+    the file backwards, skips overlapping ones, and keeps an edit only if the
+    result parses and the check's verification closure accepts it
   - `src/error.rs` - crate `Error` enum
   - `tests/` - the whole test suite (see [Testing](#testing))
 - `examples/.craft-tidy` - commented example configuration, verified by
@@ -54,7 +58,10 @@ are implemented yet).
   `--config` YAML → individual flags (`Cli::settings()`).
 - Merge rules (`Settings::merge`): `GlobList` fields are appended (last
   matching glob wins); `check-options` are overridden per check and key.
-  New scalar settings should be `Option<T>` and override.
+  Scalar settings are `Option<T>` (`None` = not set in this layer) and
+  override; `fix` is the model to follow (`--fix`/`--no-fix`, value in
+  `Settings::defaults()`, skipped when `None` on serialization, strict
+  deserializer).
 - `Settings` uses `#[serde(default, deny_unknown_fields, rename_all =
   "kebab-case")]`; keep it that way so typos are reported with locations.
 - Custom deserializers use `deserialize_any` and accept only the intended
@@ -80,10 +87,24 @@ are implemented yet).
   → `Error::InvalidOption` (exit 2); options of unknown checks → warning.
   `tests/checks.rs` verifies declared defaults are valid.
 
+## Fixes
+
+- With `fix` enabled, `app` runs the checks, calls `checks::fix()`, writes
+  the file only if it changed, re-runs the checks and reports what remains
+  (summary on stderr). Exit status reflects the remaining findings.
+- A check's `fix()` must build `fix::Edit`s on the original text (never
+  regenerate the file) and use `fix::apply_edits` with a closure verifying
+  `Document::value()` before/after: pure reformatting must leave the value
+  identical; data changes (e.g. reordering) must equal the expected value
+  exactly. When unsure whether an edit is safe for Snapcraft's YAML parser
+  too, do not propose it.
+- Fixes must be idempotent and must not fight other checks' fixes.
+
 ## Testing
 
 - All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`,
-  `config.rs`, `cli.rs`, `project.rs`, `yaml.rs`, `checks.rs`, `app.rs`), plus
+  `config.rs`, `cli.rs`, `project.rs`, `yaml.rs`, `fix.rs`, `checks.rs`,
+  `app.rs`), plus
   `example.rs` (the example config) and `binary.rs` (end-to-end runs of the
   compiled binary). Shared helpers are in `tests/common/mod.rs`, included
   with `mod common;`.

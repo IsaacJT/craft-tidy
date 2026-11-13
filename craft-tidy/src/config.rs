@@ -6,8 +6,9 @@
 //! configuration is built by merging layers in order of increasing precedence:
 //! built-in defaults, the `.craft-tidy` file, inline `--config` YAML and
 //! finally individual command line flags. When merging, glob lists are
-//! appended (so later globs win, as in clang-tidy) and check options are
-//! overridden key by key.
+//! appended (so later globs win, as in clang-tidy), scalar settings set in a
+//! later layer replace earlier ones, and check options are overridden key by
+//! key.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -163,15 +164,23 @@ pub struct Settings {
     pub checks: GlobList,
     /// Globs selecting which checks report errors instead of warnings.
     pub warnings_as_errors: GlobList,
+    /// Whether to fix problems in the project file where possible.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_bool"
+    )]
+    pub fix: Option<bool>,
     /// Options for individual checks.
     pub check_options: CheckOptions,
 }
 
 impl Settings {
-    /// The built-in defaults: every check enabled, nothing treated as an error.
+    /// The built-in defaults: every check enabled, nothing treated as an
+    /// error, nothing fixed.
     pub fn defaults() -> Self {
         Self {
             checks: GlobList::all(),
+            fix: Some(false),
             ..Self::default()
         }
     }
@@ -213,8 +222,46 @@ impl Settings {
     pub fn merge(&mut self, other: Settings) {
         self.checks.extend(other.checks);
         self.warnings_as_errors.extend(other.warnings_as_errors);
+        if other.fix.is_some() {
+            self.fix = other.fix;
+        }
         self.check_options.merge(other.check_options);
     }
+
+    /// Whether fixes should be applied.
+    pub fn fix_enabled(&self) -> bool {
+        self.fix == Some(true)
+    }
+}
+
+/// Deserializes a boolean or null. Unlike `Option<bool>`, this rejects
+/// strings such as `'true'` instead of converting them.
+fn deserialize_optional_bool<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<bool>, D::Error> {
+    struct OptionalBoolVisitor;
+
+    impl Visitor<'_> for OptionalBoolVisitor {
+        type Value = Option<bool>;
+
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("true or false")
+        }
+
+        fn visit_bool<E: de::Error>(self, v: bool) -> Result<Option<bool>, E> {
+            Ok(Some(v))
+        }
+
+        fn visit_unit<E: de::Error>(self) -> Result<Option<bool>, E> {
+            Ok(None)
+        }
+
+        fn visit_none<E: de::Error>(self) -> Result<Option<bool>, E> {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(OptionalBoolVisitor)
 }
 
 /// Searches `start` and its ancestors for a `.craft-tidy` file.

@@ -14,6 +14,8 @@ use clap::Parser;
 use craft_tidy::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use craft_tidy::cli::Cli;
 use craft_tidy::config::OptionValue;
+use craft_tidy::fix::{Edit, apply_edits};
+use craft_tidy::yaml::Document;
 use tempfile::TempDir;
 
 /// Options declared by [`FakeCheck`].
@@ -64,11 +66,16 @@ pub fn cli(args: &[&str]) -> Cli {
 /// It declares the options in [`FAKE_OPTIONS`]. If `extra` is set, an
 /// additional finding with that message is reported, which lets tests
 /// observe check options; `ratio` is validated to lie between 0 and 1.
+///
+/// With [`FakeCheck::replacing`], it also reports every occurrence of a
+/// word in the project file and fixes it by replacing the word.
 pub struct FakeCheck {
     pub name: &'static str,
     pub summary: &'static str,
     pub findings: Vec<(&'static str, Option<(usize, usize)>)>,
+    pub replace: Option<(&'static str, &'static str)>,
     pub runs: Rc<Cell<usize>>,
+    pub fixes: Rc<Cell<usize>>,
 }
 
 impl FakeCheck {
@@ -77,12 +84,19 @@ impl FakeCheck {
             name,
             summary: "A fake check",
             findings: Vec::new(),
+            replace: None,
             runs: Rc::default(),
+            fixes: Rc::default(),
         }
     }
 
     pub fn finding(mut self, message: &'static str, location: Option<(usize, usize)>) -> Self {
         self.findings.push((message, location));
+        self
+    }
+
+    pub fn replacing(mut self, word: &'static str, replacement: &'static str) -> Self {
+        self.replace = Some((word, replacement));
         self
     }
 
@@ -133,6 +147,26 @@ impl Check for FakeCheck {
         if let Some(extra) = ctx.options.get(self.name, "extra").and_then(|v| v.as_str()) {
             diagnostics.push(Diagnostic::warning(self.name, extra));
         }
+        if let Some((word, _)) = self.replace {
+            let document = &ctx.project.document;
+            for (offset, _) in document.source().match_indices(word) {
+                let (line, column) = document.position(offset);
+                diagnostics
+                    .push(Diagnostic::warning(self.name, format!("found {word}")).at(line, column));
+            }
+        }
         diagnostics
+    }
+
+    fn fix(&self, ctx: &Context<'_>) -> Option<Document> {
+        self.fixes.set(self.fixes.get() + 1);
+        let (word, replacement) = self.replace?;
+        let document = &ctx.project.document;
+        let edits = document
+            .source()
+            .match_indices(word)
+            .map(|(offset, _)| (Edit::new(offset..offset + word.len(), replacement), ()))
+            .collect();
+        apply_edits(document, edits, |_, _, _| true)
     }
 }

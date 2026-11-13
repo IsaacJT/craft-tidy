@@ -46,6 +46,15 @@ pub struct Cli {
     #[arg(long, value_name = "GLOBS", value_parser = parse_globs)]
     pub warnings_as_errors: Option<GlobList>,
 
+    /// Fix problems in the project file where possible, rewriting it in
+    /// place, then report the remaining problems.
+    #[arg(long, overrides_with_all = ["fix", "no_fix"])]
+    pub fix: bool,
+
+    /// Do not fix problems, even if enabled in the configuration file.
+    #[arg(long, overrides_with_all = ["fix", "no_fix"])]
+    pub no_fix: bool,
+
     /// Set an option for a check, e.g. 'metadata-summary-length.max-length=79'.
     /// The value is interpreted as a YAML scalar. May be repeated.
     #[arg(
@@ -99,6 +108,11 @@ impl Cli {
         let mut settings = Settings {
             checks: self.checks.clone().unwrap_or_default(),
             warnings_as_errors: self.warnings_as_errors.clone().unwrap_or_default(),
+            fix: match (self.fix, self.no_fix) {
+                (true, _) => Some(true),
+                (_, true) => Some(false),
+                _ => None,
+            },
             ..Settings::default()
         };
         for option in &self.check_options {

@@ -35,9 +35,30 @@ fn defaults() {
     assert_eq!(parsed.config, None);
     assert_eq!(parsed.config_file, None);
     assert!(!parsed.no_config);
+    assert!(!parsed.fix && !parsed.no_fix);
     assert!(!parsed.dump_config && !parsed.list_checks);
     assert_eq!(parsed.explain, None);
     assert_eq!(parsed.settings(), Default::default());
+    assert_eq!(parsed.settings().fix, None);
+}
+
+#[test]
+fn fix_flags_set_the_fix_setting() {
+    assert_eq!(cli(&["--fix"]).settings().fix, Some(true));
+    assert_eq!(cli(&["--no-fix"]).settings().fix, Some(false));
+}
+
+#[test]
+fn the_last_fix_flag_wins() {
+    assert_eq!(cli(&["--fix", "--no-fix"]).settings().fix, Some(false));
+    assert_eq!(cli(&["--no-fix", "--fix"]).settings().fix, Some(true));
+    assert_eq!(cli(&["--fix", "--fix"]).settings().fix, Some(true));
+}
+
+#[test]
+fn fix_flags_take_no_value() {
+    assert_eq!(rejected(&["--fix=yes"]), ErrorKind::TooManyValues);
+    assert_eq!(rejected(&["--no-fix=1"]), ErrorKind::TooManyValues);
 }
 
 #[test]

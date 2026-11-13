@@ -2,6 +2,7 @@
 
 //! Top-level program logic.
 
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -65,12 +66,33 @@ pub fn run_with_checks(
         return Ok(Status::Success);
     }
 
-    let project = Project::load(&cli.path)?;
+    let mut project = Project::load(&cli.path)?;
     if enabled.is_empty() {
         writeln!(err, "craft-tidy: warning: no checks enabled").map_err(Error::Output)?;
     }
 
-    let diagnostics = checks::run(&enabled, &project, &settings);
+    let mut diagnostics = checks::run(&enabled, &project, &settings);
+    if settings.fix_enabled()
+        && !diagnostics.is_empty()
+        && let Some(fixed) = checks::fix(&enabled, &project, &settings)
+    {
+        fs::write(&fixed.path, fixed.source()).map_err(|source| Error::Io {
+            path: fixed.path.clone(),
+            source,
+        })?;
+        let remaining = checks::run(&enabled, &fixed, &settings);
+        writeln!(
+            err,
+            "craft-tidy: applied fixes to {} ({} issue(s) found, {} remaining)",
+            fixed.path.display(),
+            diagnostics.len(),
+            remaining.len()
+        )
+        .map_err(Error::Output)?;
+        project = fixed;
+        diagnostics = remaining;
+    }
+
     for diagnostic in &diagnostics {
         let path = project.path.display();
         let location = match diagnostic.location {

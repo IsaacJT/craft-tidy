@@ -299,6 +299,138 @@ fn options_from_the_config_file_are_validated() {
     assert_eq!(run.out, "");
 }
 
+// Fixing
+
+const UNFIXED: &str = "name: old\nsummary: old\n";
+
+fn fixable_registry() -> Vec<Box<dyn Check>> {
+    vec![
+        FakeCheck::new("parts-a")
+            .finding("not fixable", Some((1, 1)))
+            .boxed(),
+        FakeCheck::new("style-word").replacing("old", "new").boxed(),
+    ]
+}
+
+/// A project whose snapcraft.yaml contains [`UNFIXED`].
+fn fixable_project(config: Option<&str>) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = project(config);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    fs::write(&file, UNFIXED).unwrap();
+    (dir, file)
+}
+
+#[test]
+fn fix_rewrites_the_project_file_and_reports_what_remains() {
+    let (dir, file) = fixable_project(None);
+    let run = execute(
+        &fixable_registry(),
+        &[dir.path().to_str().unwrap(), "--fix"],
+    );
+    assert_eq!(run.result.unwrap(), Status::Success);
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "name: new\nsummary: new\n"
+    );
+    assert_eq!(
+        run.out,
+        format!("{}:1:1: warning: not fixable [parts-a]\n", file.display())
+    );
+    assert_eq!(
+        run.err,
+        format!(
+            "craft-tidy: applied fixes to {} (3 issue(s) found, 1 remaining)\n",
+            file.display()
+        )
+    );
+}
+
+#[test]
+fn without_fix_the_project_file_is_untouched() {
+    let (dir, file) = fixable_project(None);
+    let run = execute(&fixable_registry(), &[dir.path().to_str().unwrap()]);
+    assert_eq!(run.result.unwrap(), Status::Success);
+    assert_eq!(fs::read_to_string(&file).unwrap(), UNFIXED);
+    assert_eq!(run.out.lines().count(), 3);
+    assert_eq!(run.err, "");
+}
+
+#[test]
+fn fix_can_be_enabled_in_the_config_file() {
+    let (dir, file) = fixable_project(Some("fix: true\n"));
+    let run = execute(&fixable_registry(), &[dir.path().to_str().unwrap()]);
+    assert!(run.result.is_ok());
+    assert_eq!(
+        fs::read_to_string(&file).unwrap(),
+        "name: new\nsummary: new\n"
+    );
+}
+
+#[test]
+fn no_fix_overrides_the_config_file() {
+    let (dir, file) = fixable_project(Some("fix: true\n"));
+    let run = execute(
+        &fixable_registry(),
+        &[dir.path().to_str().unwrap(), "--no-fix"],
+    );
+    assert!(run.result.is_ok());
+    assert_eq!(fs::read_to_string(&file).unwrap(), UNFIXED);
+    assert_eq!(run.err, "");
+}
+
+#[test]
+fn exit_status_reflects_the_problems_left_after_fixing() {
+    let (dir, _) = fixable_project(Some("warnings-as-errors: style-*\n"));
+    let path = dir.path().to_str().unwrap();
+    assert_eq!(
+        execute(&fixable_registry(), &[path]).result.unwrap(),
+        Status::LintErrors
+    );
+    assert_eq!(
+        execute(&fixable_registry(), &[path, "--fix"])
+            .result
+            .unwrap(),
+        Status::Success
+    );
+}
+
+#[test]
+fn fix_leaves_clean_projects_alone() {
+    let dir = project(None);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let registry = vec![FakeCheck::new("style-word").replacing("old", "new").boxed()];
+    let run = execute(&registry, &[dir.path().to_str().unwrap(), "--fix"]);
+    assert_eq!(run.result.unwrap(), Status::Success);
+    assert_eq!(fs::read_to_string(&file).unwrap(), "name: test\n");
+    assert_eq!((run.out.as_str(), run.err.as_str()), ("", ""));
+}
+
+#[test]
+fn fix_without_fixable_problems_changes_nothing() {
+    let (dir, file) = fixable_project(None);
+    let registry = vec![
+        FakeCheck::new("parts-a")
+            .finding("not fixable", Some((1, 1)))
+            .boxed(),
+    ];
+    let run = execute(&registry, &[dir.path().to_str().unwrap(), "--fix"]);
+    assert!(run.result.is_ok());
+    assert_eq!(fs::read_to_string(&file).unwrap(), UNFIXED);
+    assert_eq!(run.out.lines().count(), 1);
+    assert_eq!(run.err, "");
+}
+
+#[test]
+fn fix_only_uses_enabled_checks() {
+    let (dir, file) = fixable_project(None);
+    let run = execute(
+        &fixable_registry(),
+        &[dir.path().to_str().unwrap(), "--fix", "--checks=-style-*"],
+    );
+    assert!(run.result.is_ok());
+    assert_eq!(fs::read_to_string(&file).unwrap(), UNFIXED);
+}
+
 // Actions
 
 #[test]
@@ -316,7 +448,7 @@ fn dump_config_prints_effective_settings() {
     assert_eq!(run.result.unwrap(), Status::Success);
     assert_eq!(
         run.out,
-        "checks: \"*,-parts-*\"\nwarnings-as-errors: \"\"\ncheck-options:\n  parts-a:\n    extra: hi\n"
+        "checks: \"*,-parts-*\"\nwarnings-as-errors: \"\"\nfix: false\ncheck-options:\n  parts-a:\n    extra: hi\n"
     );
     assert_eq!(run.err, "");
 }

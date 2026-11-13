@@ -28,6 +28,7 @@ fn example_is_a_valid_configuration() {
         settings.warnings_as_errors.to_string(),
         "metadata-*,parts-*"
     );
+    assert_eq!(settings.fix, Some(false));
     assert!(settings.check_options.is_empty());
 
     assert!(settings.checks.matches("parts-plugin"));

@@ -55,6 +55,7 @@ The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
 | `glob`        | clang-tidy style check selection globs                           |
 | `project`     | Locating, loading and parsing the `snapcraft.yaml` file          |
 | `yaml`        | YAML document tree with source positions, and the `Value` model  |
+| `fix`         | Verified text edits used by checks to fix problems               |
 | `checks`      | The `Check` trait, the check registry and the check runner       |
 | `app`         | Top-level program flow: resolving settings and running actions   |
 | `error`       | The crate's error type                                           |
@@ -72,6 +73,7 @@ module through the crate's public API:
 | `tests/cli.rs`     | `cli`: argument parsing and validation                          |
 | `tests/project.rs` | `project`: locating, loading and parsing `snapcraft.yaml`       |
 | `tests/yaml.rs`    | `yaml`: tree structure, spans, values, lines, syntax errors     |
+| `tests/fix.rs`     | `fix`: applying, verifying and skipping edits                   |
 | `tests/checks.rs`  | `checks`: selection, running, `warnings-as-errors`, options     |
 | `tests/app.rs`     | `app`: settings layering, output and every action               |
 | `tests/example.rs` | `examples/.craft-tidy` is valid, complete and up to date        |
@@ -107,10 +109,17 @@ Guidelines:
    `.at(line, column)` where possible. Severity is promoted to error by the
    runner according to `warnings-as-errors`; checks should not do this
    themselves.
-5. Register the check in `checks::registry()`.
-6. Add tests in a new file `craft-tidy/tests/check_<name>.rs` covering
-   projects that pass, projects that fail, and each option.
-7. Document the check and its options in `README.md`, and show its options
+5. If the problems can be fixed automatically, implement `fix()`. Express
+   the fix as `fix::Edit`s of the source text and apply them with
+   `fix::apply_edits`, passing a verification closure that compares the
+   data before and after each edit (`Document::value()`): edits that only
+   reformat must leave it unchanged, and edits that change data must
+   produce exactly the intended result. Never rewrite the whole file.
+6. Register the check in `checks::registry()`.
+7. Add tests in a new file `craft-tidy/tests/check_<name>.rs` covering
+   projects that pass, projects that fail, each option, and for fixable
+   checks the fixed output as well as problems that must not be fixed.
+8. Document the check and its options in `README.md`, and show its options
    in `examples/.craft-tidy`.
 
 ## Adding a configuration setting
@@ -121,7 +130,9 @@ Settings must be available both in `.craft-tidy` and on the command line:
    kebab-case in YAML.
 2. Define how it merges in `Settings::merge`: glob lists are appended, while
    scalar settings should be `Option<T>` with later layers overriding earlier
-   ones.
+   ones (see `fix`). Give scalar settings a strict deserializer that rejects
+   other YAML types, and a value in `Settings::defaults()` so that
+   `--dump-config` shows it.
 3. Add the matching flag to `Cli` in `craft-tidy/src/cli.rs` and include it in
    `Cli::settings()`.
 4. Add tests in `tests/config.rs`, `tests/cli.rs` and `tests/app.rs`, for both

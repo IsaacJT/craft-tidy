@@ -168,6 +168,37 @@ fn defaults_enable_all_checks_as_warnings() {
     assert!(defaults.checks.matches("any-check"));
     assert!(defaults.warnings_as_errors.is_empty());
     assert!(defaults.check_options.is_empty());
+    assert_eq!(defaults.fix, Some(false));
+    assert!(!defaults.fix_enabled());
+}
+
+#[test]
+fn parses_the_fix_setting() {
+    assert_eq!(parse("fix: true\n").fix, Some(true));
+    assert_eq!(parse("fix: false\n").fix, Some(false));
+    assert_eq!(parse("fix:\n").fix, None);
+    assert_eq!(parse("checks: x\n").fix, None);
+    assert!(parse("fix: true\n").fix_enabled());
+    assert!(!parse("fix: false\n").fix_enabled());
+    assert!(!parse("").fix_enabled());
+}
+
+#[test]
+fn rejects_non_boolean_fix_values() {
+    for yaml in ["fix: 1\n", "fix: 'true'\n", "fix: [true]\n", "fix: maybe\n"] {
+        parse_err(yaml);
+    }
+}
+
+#[test]
+fn merge_overrides_fix_only_when_set() {
+    let mut settings = Settings::defaults();
+    settings.merge(parse("fix: true\n"));
+    assert_eq!(settings.fix, Some(true));
+    settings.merge(parse("checks: x\n"));
+    assert_eq!(settings.fix, Some(true));
+    settings.merge(parse("fix: false\n"));
+    assert_eq!(settings.fix, Some(false));
 }
 
 #[test]
@@ -217,10 +248,17 @@ fn serialized_settings_parse_back_identically() {
 #[test]
 fn serialized_defaults_list_every_key() {
     let yaml = Settings::defaults().to_yaml().unwrap();
-    for key in ["checks:", "warnings-as-errors:", "check-options:"] {
+    for key in ["checks:", "warnings-as-errors:", "fix:", "check-options:"] {
         assert!(yaml.contains(key), "{yaml}");
     }
     assert_eq!(parse(&yaml), Settings::defaults());
+}
+
+#[test]
+fn unset_scalar_settings_are_not_serialized() {
+    let yaml = Settings::default().to_yaml().unwrap();
+    assert!(!yaml.contains("fix:"), "{yaml}");
+    assert_eq!(parse(&yaml), Settings::default());
 }
 
 // Check options

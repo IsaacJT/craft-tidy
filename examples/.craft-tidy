@@ -18,6 +18,11 @@ checks:
 # craft-tidy exit with status 1. Default: "" (all findings are warnings).
 warnings-as-errors: "metadata-*,parts-*"
 
+# Whether to fix problems where possible, rewriting the project file in
+# place before reporting what remains. Same as passing `--fix`; `--no-fix`
+# overrides it. Default: false.
+fix: false
+
 # Options for individual checks, keyed by check name. Values may be booleans,
 # integers, floats or strings. Run `craft-tidy --explain CHECK` to see the
 # options supported by a check. For example:

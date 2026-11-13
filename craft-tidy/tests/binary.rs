@@ -53,7 +53,7 @@ fn dump_config_shows_defaults() {
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         stdout(&output),
-        "checks: \"*\"\nwarnings-as-errors: \"\"\ncheck-options: {}\n"
+        "checks: \"*\"\nwarnings-as-errors: \"\"\nfix: false\ncheck-options: {}\n"
     );
     assert_eq!(stderr(&output), "");
 }
@@ -80,6 +80,7 @@ fn configuration_sources_are_layered() {
         stdout(&output),
         "checks: -*,parts-*,-parts-y,metadata-*\n\
          warnings-as-errors: \"\"\n\
+         fix: false\n\
          check-options:\n  parts-x:\n    a: 1\n    b: 3\n    c: 5\n"
     );
 }
@@ -141,6 +142,20 @@ fn example_config_is_accepted_without_warnings() {
 
     let output = craft_tidy(dir.path(), &["--config-file", example]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+}
+
+#[test]
+fn fix_without_fixable_problems_leaves_the_project_file_alone() {
+    let dir = project(Some("fix: true\n"));
+    for args in [&["--fix"][..], &[]] {
+        let output = craft_tidy(dir.path(), args);
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        assert!(!stderr(&output).contains("applied fixes"));
+    }
+    assert_eq!(
+        fs::read_to_string(dir.path().join("snap/snapcraft.yaml")).unwrap(),
+        "name: test\n"
+    );
 }
 
 #[test]
