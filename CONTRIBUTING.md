@@ -228,8 +228,11 @@ request, and on demand (`workflow_dispatch`):
 | Publish to edge   | Pushes to `main` only, after all other jobs pass: [`snapcore/action-publish`](https://github.com/snapcore/action-publish) uploads both snaps to the Snap Store and releases them to `edge` |
 
 When raising `rust-version`, update the matrix in the workflow too. When
-adding an architecture, add it to `platforms` in `snap/snapcraft.yaml` and
-to both the snap and the publish matrix.
+adding an architecture, add a runner of that architecture to the snap
+matrix and the architecture to the publish matrix. `snap/snapcraft.yaml`
+has no `platforms` key on purpose: the snap builds for whatever
+architecture it is built on, and CI builds amd64 and arm64 by building on
+runners of each.
 
 Publishing needs, once, in the repository settings on GitHub:
 

@@ -85,8 +85,9 @@ check framework and `--fix` exist. Implemented checks:
 - `examples/.craft-tidy` - commented example configuration, verified by
   `craft-tidy/tests/example.rs`
 - `snap/snapcraft.yaml` - snap packaging (base `core26`, `rust` plugin,
-  part source `craft-tidy/`, `home` plug, `platforms` amd64 and arm64;
-  `grade: devel`, which the store only allows on `edge`/`beta`)
+  part source `craft-tidy/`, `home` plug; `grade: devel`, which the store
+  only allows on `edge`/`beta`). Deliberately has no `platforms` key, so it
+  builds for whatever architecture it is built on; do not add one
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
@@ -98,8 +99,8 @@ check framework and `--fix` exist. Implemented checks:
   stay in `snapcraft-test.yaml`. The `publish` job (pushes to `main` only,
   `needs` all others, environment `snap-store`, secret
   `SNAPCRAFT_STORE_CREDENTIALS`) releases both snaps to `edge` with
-  `snapcore/action-publish@v1`. Architectures must match `platforms` in
-  `snap/snapcraft.yaml` and both matrices
+  `snapcore/action-publish@v1`. The architectures CI builds are decided by
+  the runners alone; keep the snap and publish matrices in sync
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
