@@ -6,6 +6,8 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use clap::Parser;
+
 use crate::checks::{self, Check, Severity};
 use crate::cli::Cli;
 use crate::config::{self, Settings};
@@ -134,6 +136,13 @@ fn lint(
     } else {
         Ok(Status::Success)
     }
+}
+
+/// The configuration for the project file `path` when no command line
+/// options are given: the defaults and the `.craft-tidy` file found for it.
+/// Used by the language server, which checks files as an editor opens them.
+pub fn settings_for(path: &Path) -> Result<Settings, Error> {
+    resolve_settings(&Cli::parse_from([Path::new("craft-tidy"), path]))
 }
 
 /// Builds the effective configuration from all sources, in order of

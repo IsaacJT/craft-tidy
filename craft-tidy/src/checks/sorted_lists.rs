@@ -86,8 +86,7 @@ impl Check for SortedLists {
         unsorted_lists(ctx)
             .into_iter()
             .map(|list| {
-                let (line, column) = document.position(list.location);
-                Diagnostic::warning(NAME, list.message).at(line, column)
+                Diagnostic::warning(NAME, list.message).spanning(document, list.location..list.end)
             })
             .collect()
     }
@@ -118,6 +117,8 @@ impl Check for SortedLists {
 struct UnsortedList {
     /// Byte offset of the first misplaced entry.
     location: usize,
+    /// Byte offset of the end of the list.
+    end: usize,
     message: String,
     /// Path of the list in the document's [`Value`].
     path: Vec<usize>,
@@ -322,6 +323,7 @@ impl Analysis<'_> {
             };
             self.lists.push(UnsortedList {
                 location: items[first].span.start,
+                end: items.last().map_or(list.span.end, |item| item.span.end),
                 message,
                 path: path.clone(),
                 order,

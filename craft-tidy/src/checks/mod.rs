@@ -11,6 +11,7 @@ mod root_source;
 mod sorted_lists;
 
 use std::fmt;
+use std::ops::Range;
 
 use crate::config::{CheckOptions, OptionValue, Settings};
 use crate::craft::Craft;
@@ -48,6 +49,10 @@ pub struct Diagnostic {
     pub message: String,
     /// 1-based line and column in the project file, if known.
     pub location: Option<(usize, usize)>,
+    /// Byte range of the source text the finding is about, if known; its
+    /// start is at `location`. Used by editors to underline the finding and
+    /// to fix it alone.
+    pub span: Option<Range<usize>>,
     /// Why `--fix` cannot fix the finding, if the check knows; reported
     /// for findings that remain after fixing.
     pub unfixable: Option<String>,
@@ -62,6 +67,7 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: message.into(),
             location: None,
+            span: None,
             unfixable: None,
         }
     }
@@ -69,6 +75,14 @@ impl Diagnostic {
     /// Sets the 1-based line and column of the finding.
     pub fn at(mut self, line: usize, column: usize) -> Self {
         self.location = Some((line, column));
+        self
+    }
+
+    /// Sets the byte range of `document` that the finding is about, and its
+    /// location to the start of that range.
+    pub fn spanning(mut self, document: &Document, span: Range<usize>) -> Self {
+        self.location = Some(document.position(span.start));
+        self.span = Some(span);
         self
     }
 
@@ -85,6 +99,9 @@ pub struct Context<'a> {
     pub options: &'a CheckOptions,
     /// The `NOLINT` comments of the project file.
     pub nolint: &'a Nolint,
+    /// If set, only edits overlapping this byte range are made, to fix a
+    /// single finding.
+    pub only: Option<Range<usize>>,
 }
 
 impl Context<'_> {
@@ -102,6 +119,11 @@ impl Context<'_> {
         let edits = edits
             .into_iter()
             .filter(|(edit, _)| {
+                if let Some(only) = &self.only
+                    && !overlap(&edit.range, only)
+                {
+                    return false;
+                }
                 let first = document.line_index(edit.range.start);
                 let last = document.line_index(edit.range.end);
                 !self.nolint.suppresses_any(check, first..=last)
@@ -109,6 +131,12 @@ impl Context<'_> {
             .collect();
         fix::apply_edits(document, edits, accept)
     }
+}
+
+/// Whether byte ranges `a` and `b` overlap, counting an empty range (an
+/// insertion) as covering the byte at its position.
+fn overlap(a: &Range<usize>, b: &Range<usize>) -> bool {
+    a.start < b.end.max(b.start + 1) && b.start < a.end.max(a.start + 1)
 }
 
 /// The type of a check option's value.
@@ -268,6 +296,7 @@ pub fn run(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Vec
         project,
         options: &settings.check_options,
         nolint: &nolint,
+        only: None,
     };
     let mut diagnostics: Vec<Diagnostic> = checks
         .iter()
@@ -308,6 +337,7 @@ pub fn fix(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Opt
                 project: &current,
                 options: &settings.check_options,
                 nolint: &nolint,
+                only: None,
             };
             if let Some(document) = check.fix(&ctx)
                 && document.source() != current.source()
@@ -321,4 +351,30 @@ pub fn fix(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Opt
         }
     }
     (current.source() != project.source()).then_some(current)
+}
+
+/// Fixes only the finding of `check` covering the byte range `span` of
+/// `project` (see [`Diagnostic::span`]), with the same verification as
+/// [`fix`]. Returns the fixed project, or `None` if it cannot be fixed.
+pub fn fix_span(
+    check: &dyn Check,
+    project: &Project,
+    settings: &Settings,
+    span: Range<usize>,
+) -> Option<Project> {
+    if !applies_to(check, project.craft) {
+        return None;
+    }
+    let nolint = Nolint::parse(&project.document);
+    let ctx = Context {
+        project,
+        options: &settings.check_options,
+        nolint: &nolint,
+        only: Some(span),
+    };
+    let document = check.fix(&ctx)?;
+    (document.source() != project.source()).then(|| Project {
+        document,
+        ..project.clone()
+    })
 }

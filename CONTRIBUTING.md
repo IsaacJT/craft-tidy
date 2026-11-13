@@ -156,8 +156,11 @@ Guidelines:
    such as ranges. Read options with
    `ctx.options.get(self.name(), "option-name")`, falling back to the
    declared default when an option is not set.
-4. Report findings with `Diagnostic::warning(...)`, adding a location with
-   `.at(line, column)` where possible. Severity is promoted to error by the
+4. Report findings with `Diagnostic::warning(...)`, adding the byte range
+   of the text the finding is about with `.spanning(document, range)`
+   (which also sets the line and column; use `.at(line, column)` only if
+   there is no meaningful range). Editors underline that range, and fix
+   the finding alone by fixing only edits overlapping it. Severity is promoted to error by the
    runner according to `warnings-as-errors`; checks should not do this
    themselves. If the check has a fix but cannot fix a finding, say why
    with `.unfixable(reason)`; the reason is shown for findings that remain

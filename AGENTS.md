@@ -25,7 +25,9 @@ check framework and `--fix` exist. Implemented checks:
   - `src/main.rs` - thin binary: parses `Cli`, calls `app::run`, maps the
     result to an exit code
   - `src/lib.rs` - module declarations
-  - `src/app.rs` - program flow, `resolve_settings()` (config layering);
+  - `src/app.rs` - program flow, `resolve_settings()` (config layering),
+    `settings_for(path)` (defaults + discovered `.craft-tidy`, for the
+    language server);
     `run()` uses the real registry, `run_with_checks()` takes any checks
   - `src/cli.rs` - clap derive `Cli`; `Cli::settings()` turns flags into a
     `Settings` layer
@@ -50,7 +52,11 @@ check framework and `--fix` exist. Implemented checks:
     helpers), `Node` with byte-range `span`s, and the presentation-free
     `Value` model used to verify fixes. Built from
     `serde_saphyr::granit_parser` events (no extra dependency)
-  - `src/checks/mod.rs` - `Check` trait, `Diagnostic`, `registry()`,
+  - `src/checks/mod.rs` - `Check` trait, `Diagnostic` (with `location`, and
+    `span`, the byte range set by `.spanning(document, range)`, which every
+    check uses), `Context` (`only`: restrict edits to a range),
+    `fix_span()` (one pass of one check's fix limited to a finding's span,
+    used for editor quick fixes), `registry()`,
     `enabled()`, `validate_options()`, `run()`, `fix()` (repeats passes over
     the enabled checks' `Check::fix` until nothing changes, max 10)
   - `src/checks/project_file_location.rs` - `project-file-location`: reports

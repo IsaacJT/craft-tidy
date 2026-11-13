@@ -100,11 +100,17 @@ impl Check for LineLength {
                         .then(|| "wrapping it would change the data".to_owned()),
                     (None, None) => Some("it cannot be wrapped automatically".to_owned()),
                 };
+                // The part of the line beyond the limit.
+                let overflow = document
+                    .line(index)
+                    .char_indices()
+                    .nth(max)
+                    .map_or(range.end, |(offset, _)| range.start + offset);
                 let diagnostic = Diagnostic::warning(
                     NAME,
                     format!("line is {length} characters long, exceeding the limit of {max}"),
                 )
-                .at(index + 1, max + 1);
+                .spanning(document, overflow..range.end);
                 Some(match reason {
                     Some(reason) => diagnostic.unfixable(reason),
                     None => diagnostic,

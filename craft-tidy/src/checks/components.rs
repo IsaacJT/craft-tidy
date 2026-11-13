@@ -94,9 +94,10 @@ impl Check for Components {
                     }
                 }
                 None => {
-                    let (line, column) = document.position(usage.offset);
-                    diagnostics
-                        .push(Diagnostic::warning(NAME, usage.message(&defined)).at(line, column));
+                    let span = usage.offset..usage.offset + usage.len();
+                    diagnostics.push(
+                        Diagnostic::warning(NAME, usage.message(&defined)).spanning(document, span),
+                    );
                 }
             }
         }
@@ -109,7 +110,6 @@ impl Check for Components {
         if report_unused {
             for (name, offset) in &defined {
                 if !used.contains(name) {
-                    let (line, column) = document.position(*offset);
                     diagnostics.push(
                         Diagnostic::warning(
                             NAME,
@@ -118,7 +118,7 @@ impl Check for Components {
                                  so it would be empty"
                             ),
                         )
-                        .at(line, column),
+                        .spanning(document, *offset..*offset + name.len()),
                     );
                 }
             }
@@ -174,6 +174,14 @@ struct Use {
 }
 
 impl Use {
+    /// Length in bytes of the reference in the source.
+    fn len(&self) -> usize {
+        match &self.reference {
+            Reference::Name(name) => name.len(),
+            Reference::Variable { variable, .. } => variable.len(),
+        }
+    }
+
     fn matches(&self, name: &str) -> bool {
         match &self.reference {
             Reference::Name(used) => used == name,

@@ -76,7 +76,6 @@ impl Check for CollapsedSequences {
         changes(ctx)
             .into_iter()
             .map(|change| {
-                let (line, column) = document.position(change.sequence_start);
                 let key = &change.key;
                 let message = match (change.collapse, change.items) {
                     (true, 1) => format!(
@@ -95,7 +94,8 @@ impl Check for CollapsedSequences {
                         if items == 1 { "item" } else { "items" }
                     ),
                 };
-                Diagnostic::warning(NAME, message).at(line, column)
+                Diagnostic::warning(NAME, message)
+                    .spanning(document, change.sequence_start..change.edit.range.end)
             })
             .collect()
     }

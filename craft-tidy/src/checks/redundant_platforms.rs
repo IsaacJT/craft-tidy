@@ -53,7 +53,6 @@ impl Check for RedundantPlatforms {
         redundant(document)
             .into_iter()
             .map(|platform| {
-                let (line, column) = document.position(platform.key_start);
                 Diagnostic::warning(
                     NAME,
                     format!(
@@ -62,7 +61,7 @@ impl Check for RedundantPlatforms {
                         platform.name
                     ),
                 )
-                .at(line, column)
+                .spanning(document, platform.key_start..platform.edit.range.end)
             })
             .collect()
     }

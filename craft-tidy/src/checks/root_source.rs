@@ -70,7 +70,6 @@ impl Check for RootSource {
             let mut roots = Vec::new();
             root_sources(source, &mut roots);
             for node in roots {
-                let (line, column) = document.position(node.span.start);
                 let value = node.as_scalar().unwrap_or_default();
                 diagnostics.push(
                     Diagnostic::warning(
@@ -82,7 +81,7 @@ impl Check for RootSource {
                              code instead, such as 'src'"
                         ),
                     )
-                    .at(line, column)
+                    .spanning(document, node.span.clone())
                     .unfixable("craft-tidy cannot know which directory holds the code"),
                 );
             }

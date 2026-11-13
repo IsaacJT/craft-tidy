@@ -583,3 +583,96 @@ fn fixes_leave_suppressed_lines_alone() {
     // Nothing is left to report.
     assert!(checks::run(&[&check], &fixed, &settings("", "")).is_empty());
 }
+
+// Spans and fixing single findings
+
+#[test]
+fn spanning_sets_the_location_and_range() {
+    let document = craft_tidy::yaml::Document::parse("a: 1\nbb: 2\n").unwrap();
+    let diagnostic = Diagnostic::warning("parts-a", "x").spanning(&document, 5..7);
+    assert_eq!(diagnostic.location, Some((2, 1)));
+    assert_eq!(diagnostic.span, Some(5..7));
+    assert_eq!(Diagnostic::warning("parts-a", "x").span, None);
+}
+
+#[test]
+fn every_check_reports_what_its_findings_are_about() {
+    // A project with one finding of each check, and the text each covers.
+    let long = "x".repeat(90);
+    let source = format!(
+        "name: test\nsummary: {long}\nplugs:\n  - b\n  - a\nslots:\n  - x\nplatforms:\n  amd64:\n    \
+         build-on: [amd64]\ncomponents:\n  docs:\n    type: standard\nparts:\n  p:\n    \
+         source: .\n    organize:\n      x: (component/docs)\n      y: (component/dcos)\n\
+         # NOLINTEND\n"
+    );
+    let project = Project::new("snapcraft.yaml", source.as_str()).unwrap();
+    let registry = checks::registry();
+    let settings = Settings::defaults();
+    let enabled = checks::enabled(&registry, &settings);
+    let mut covered: Vec<_> = checks::run(&enabled, &project, &settings)
+        .into_iter()
+        .filter_map(|d| {
+            let span = d.span?;
+            let (line, column) = d.location.unwrap();
+            assert_eq!(
+                project.document.position(span.start),
+                (line, column),
+                "{}",
+                d.check
+            );
+            Some((d.check, &source[span]))
+        })
+        .collect();
+    covered.sort();
+    assert_eq!(
+        covered,
+        [
+            ("craft-tidy-nolint", "NOLINTEND"),
+            ("project-root-source", "."),
+            ("snapcraft-components", "dcos"),
+            ("style-collapsed-sequences", "- x"),
+            ("style-line-length", "xxxxxxxxxxxxxxxxxxx"),
+            ("style-redundant-platforms", "amd64:\n    build-on: [amd64]"),
+            ("style-sorted-lists", "b\n  - a"),
+        ]
+    );
+}
+
+#[test]
+fn fix_span_fixes_only_that_finding() {
+    let source = "a: old\nb: old\n";
+    let project = Project::new("snapcraft.yaml", source).unwrap();
+    let check = FakeCheck::new("parts-a").replacing("old", "new");
+    let settings = settings("", "");
+    let fixed = checks::fix_span(&check, &project, &settings, 10..13).unwrap();
+    assert_eq!(fixed.source(), "a: old\nb: new\n");
+    // Nothing to fix there, or outside the file.
+    assert!(checks::fix_span(&check, &project, &settings, 0..2).is_none());
+    assert!(checks::fix_span(&check, &project, &settings, 100..101).is_none());
+    // Checks that do not apply to the file fix nothing.
+    let snap_only = FakeCheck::new("parts-a")
+        .replacing("old", "new")
+        .only_for(&[Craft::Snapcraft]);
+    let rock = Project::new("rockcraft.yaml", source).unwrap();
+    assert!(checks::fix_span(&snap_only, &rock, &settings, 3..6).is_none());
+}
+
+#[test]
+fn fix_span_keeps_the_checks_verification_and_nolint() {
+    // A real fix: sort only the second list.
+    let source = "plugs: [b, a]\nslots: [d, c]\n";
+    let project = Project::new("snapcraft.yaml", source).unwrap();
+    let registry = checks::registry();
+    let sorted = registry
+        .iter()
+        .find(|c| c.name() == "style-sorted-lists")
+        .unwrap();
+    let settings = Settings::defaults();
+    let span = source.find("d, c").unwrap()..source.len() - 2;
+    let fixed = checks::fix_span(sorted.as_ref(), &project, &settings, span).unwrap();
+    assert_eq!(fixed.source(), "plugs: [b, a]\nslots: [c, d]\n");
+    // Suppressed lines are not fixed.
+    let source = "plugs: [b, a] # NOLINT\n";
+    let project = Project::new("snapcraft.yaml", source).unwrap();
+    assert!(checks::fix_span(sorted.as_ref(), &project, &settings, 8..12).is_none());
+}

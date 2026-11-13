@@ -618,3 +618,22 @@ fn explain_rejects_unknown_checks() {
     assert!(matches!(run.result, Err(Error::UnknownCheck(name)) if name == "parts-*"));
     assert_eq!(run.out, "");
 }
+
+#[test]
+fn settings_for_finds_the_configuration_of_a_file() {
+    let dir = project(Some("checks: -style-*\n"));
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let settings = app::settings_for(&file).unwrap();
+    assert!(!settings.checks.matches("style-line-length"));
+    assert!(settings.checks.matches("project-file-location"));
+    // Without a configuration file, the defaults.
+    let dir = project(None);
+    let settings = app::settings_for(&dir.path().join("snap/snapcraft.yaml")).unwrap();
+    assert_eq!(settings.checks, Settings::defaults().checks);
+    // An invalid configuration file is an error.
+    let dir = project(Some("checks: [1]\n"));
+    assert!(matches!(
+        app::settings_for(&dir.path().join("snap/snapcraft.yaml")),
+        Err(Error::Config { .. })
+    ));
+}

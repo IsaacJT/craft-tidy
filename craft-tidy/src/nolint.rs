@@ -41,8 +41,8 @@ struct Directive {
     kind: Kind,
     /// 0-based line of the comment.
     line: usize,
-    /// 1-based column of the keyword.
-    column: usize,
+    /// Byte range of the comment, to the end of its line.
+    span: std::ops::Range<usize>,
     /// The checks it applies to; `None` for all.
     checks: Option<GlobList>,
     /// The check list as written, to match `NOLINTBEGIN` with `NOLINTEND`.
@@ -67,11 +67,12 @@ impl Nolint {
             let directive = match parse_comment(document, comment.start) {
                 Ok(Some(directive)) => directive,
                 Ok(None) => continue,
-                Err((column, message)) => {
-                    let line = document.line_index(comment.start) + 1;
+                Err((keyword, message)) => {
+                    let line = document.line_index(comment.start);
+                    let span = keyword..document.line_range(line).end;
                     nolint
                         .problems
-                        .push(Diagnostic::warning(NAME, message).at(line, column));
+                        .push(Diagnostic::warning(NAME, message).spanning(document, span));
                     continue;
                 }
             };
@@ -102,7 +103,7 @@ impl Nolint {
                                     list_suffix(&directive.written)
                                 ),
                             )
-                            .at(directive.line + 1, directive.column),
+                            .spanning(document, directive.span.clone()),
                         ),
                     }
                 }
@@ -118,7 +119,7 @@ impl Nolint {
                         list_suffix(&begin.written)
                     ),
                 )
-                .at(begin.line + 1, begin.column),
+                .spanning(document, begin.span.clone()),
             );
         }
         nolint
@@ -171,15 +172,14 @@ fn same_checks(a: &str, b: &str) -> bool {
 }
 
 /// Parses the comment starting at byte `start` (its `#`): `Ok(None)` if it
-/// is not a `NOLINT` comment, or the 1-based column and description of a
-/// mistake in it.
+/// is not a `NOLINT` comment, or the byte offset of its keyword and a
+/// description of a mistake in it.
 fn parse_comment(document: &Document, start: usize) -> Result<Option<Directive>, (usize, String)> {
     let line = document.line_index(start);
     let end = document.line_range(line).end;
     let text = &document.source()[start..end];
     let body = text[1..].trim_start();
     let offset = start + (text.len() - body.len());
-    let column = document.position(offset).1;
 
     let Some((keyword, kind, rest)) = KEYWORDS
         .iter()
@@ -195,12 +195,12 @@ fn parse_comment(document: &Document, start: usize) -> Result<Option<Directive>,
         None => (None, String::new()),
         Some(list) => {
             let Some(close) = list.find(')') else {
-                return Err((column, format!("{keyword} has an unclosed '('")));
+                return Err((offset, format!("{keyword} has an unclosed '('")));
             };
             let written = list[..close].trim();
             if written.is_empty() {
                 return Err((
-                    column,
+                    offset,
                     format!("{keyword}() lists no checks; omit the parentheses to suppress all"),
                 ));
             }
@@ -210,13 +210,13 @@ fn parse_comment(document: &Document, start: usize) -> Result<Option<Directive>,
                 .find(|g| g.starts_with('-'))
             {
                 return Err((
-                    column,
+                    offset,
                     format!("{keyword} cannot disable suppression with '{negated}'"),
                 ));
             }
             let globs: GlobList = written.parse().map_err(|_| {
                 (
-                    column,
+                    offset,
                     format!(
                         "{keyword} has an invalid check list '{written}': list check names \
                          or globs (lowercase letters, digits, '-' and '*'), separated by commas"
@@ -229,7 +229,7 @@ fn parse_comment(document: &Document, start: usize) -> Result<Option<Directive>,
     Ok(Some(Directive {
         kind,
         line,
-        column,
+        span: offset..end,
         checks,
         written,
     }))

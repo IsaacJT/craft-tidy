@@ -209,9 +209,10 @@ impl Check for FakeCheck {
         if let Some((word, _)) = self.replace {
             let document = &ctx.project.document;
             for (offset, _) in document.source().match_indices(word) {
-                let (line, column) = document.position(offset);
-                diagnostics
-                    .push(Diagnostic::warning(self.name, format!("found {word}")).at(line, column));
+                diagnostics.push(
+                    Diagnostic::warning(self.name, format!("found {word}"))
+                        .spanning(document, offset..offset + word.len()),
+                );
             }
         }
         diagnostics
