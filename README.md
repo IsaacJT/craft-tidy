@@ -2,7 +2,7 @@
 
 [![craft-tidy](https://snapcraft.io/craft-tidy/badge.svg)](https://snapcraft.io/craft-tidy)
 
-[![Get it from the Snap Store](https://snapcraft.io/en/light/install.svg)](https://snapcraft.io/craft-tidy)
+<a href="https://snapcraft.io/craft-tidy"><img alt="Get it from the Snap Store" src="https://snapcraft.io/en/light/install.svg" height="40"></a>
 
 craft-tidy is a linter for the project files of Canonical's craft tools:
 `snapcraft.yaml` ([Snapcraft](https://snapcraft.io)), `charmcraft.yaml`
