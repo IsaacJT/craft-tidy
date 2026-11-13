@@ -137,7 +137,8 @@ Guidelines:
 
 1. Pick a kebab-case name prefixed with a category, so that users can
    select related checks with globs such as `style-*`. Reuse an existing
-   category (`project-` for the project layout, `style-` for formatting)
+   category (`project-` for the project layout, `style-` for formatting,
+   `snapcraft-` for the content of Snapcraft projects)
    where it fits, and document any new category in `README.md`.
 2. Implement the `Check` trait from `craft-tidy/src/checks/mod.rs` in a new
    module under `craft-tidy/src/checks/`. `summary()` is shown by

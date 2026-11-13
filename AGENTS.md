@@ -12,8 +12,8 @@ Rust and distributed as a strictly confined snap. It is licensed
 
 The project is in early development: the CLI, the configuration system, the
 check framework and `--fix` exist. Implemented checks:
-`project-file-location`, `style-collapsed-sequences`, `style-line-length`,
-`style-sorted-lists`.
+`project-file-location`, `snapcraft-components`,
+`style-collapsed-sequences`, `style-line-length`, `style-sorted-lists`.
 
 ## Repository layout
 
@@ -56,6 +56,15 @@ check framework and `--fix` exist. Implemented checks:
     parser's span of an indentless sequence starts at its first item);
     expansion copies the file's block indentation. Run and fix share
     `changes()`, which only keeps edits that verify
+  - `src/checks/components.rs` - `snapcraft-components` (option
+    `report-unused`, default true; Snapcraft-only, no fix): components used
+    by parts must be keys of top-level `components`. Uses: `(component/X)`
+    prefix in `organize` values and `stage`/`prime` entries (optional `-`,
+    grammar descended), `CRAFT_COMPONENT_<X>_{STAGE,PRIME,OVERLAY}` in any
+    string under `parts` (X = name uppercased, `-`/`/`/`+` → `_`, as
+    craft-parts' `_translate_partition_env`), and `craftctl … components.X.`
+    keys (metadata only, so they don't count as filling a component).
+    Suggests the closest name (Levenshtein ≤ max(2, len/4))
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments; lines it skips get an `unfixable` reason
@@ -134,7 +143,9 @@ change). The CONTRIBUTING checklists are the complete list of steps,
 including tests, docs, `examples/.craft-tidy` and the spread tasks.
 
 - Names are kebab-case with a category prefix. Existing categories:
-  `project-` (project layout), `style-` (formatting of the project file).
+  `project-` (project layout), `style-` (formatting of the project file),
+  `snapcraft-` (content of Snapcraft projects; such checks are
+  Snapcraft-only via `crafts()`).
   Reuse one where it fits; a new category must be documented in `README.md`.
 - Implement `Check`, register in `checks::registry()`, read options via
   `ctx.options.get(name, key)`, emit `Diagnostic::warning(..)`. The runner

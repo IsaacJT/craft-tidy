@@ -122,3 +122,10 @@ execute: |
         - make
   EOF
   diff -u expected.yaml charmcraft.yaml
+
+  # snapcraft-components only applies to Snapcraft.
+  mkdir -p "$WORK/components"
+  cd "$WORK/components"
+  printf 'name: x\nparts:\n  a:\n    organize:\n      x: (component/nope)\n' > charmcraft.yaml
+  craft-tidy --checks='-*,snapcraft-components' > out.txt
+  test ! -s out.txt

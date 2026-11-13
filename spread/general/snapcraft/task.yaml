@@ -101,3 +101,38 @@ execute: |
         - make
   EOF
   diff -u expected.yaml snap/snapcraft.yaml
+
+  # Components used by parts must be defined.
+  mkdir -p "$WORK/components/snap"
+  cd "$WORK/components"
+  cat > snap/snapcraft.yaml <<'EOF'
+  name: components
+  components:
+    translations:
+      type: standard
+      summary: Translations
+      description: Translations
+  parts:
+    translations:
+      plugin: dump
+      source: translations
+      organize:
+        la: (component/translatons)
+      override-prime: |
+        craftctl default
+        cp -r extra $CRAFT_COMPONENT_DOCS_PRIME/
+  EOF
+  craft-tidy --checks='-*,snapcraft-components' > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 3
+  MATCH "snapcraft.yaml:3:3: warning: component 'translations' is defined but no part puts files in it, so it would be empty \[snapcraft-components\]" < out.txt
+  MATCH "snapcraft.yaml:12:22: warning: component 'translatons' is not defined under components; did you mean 'translations'\? \[snapcraft-components\]" < out.txt
+  MATCH "snapcraft.yaml:15:20: warning: .CRAFT_COMPONENT_DOCS_PRIME refers to component 'docs', which is not defined under components \[snapcraft-components\]" < out.txt
+  craft-tidy --checks='-*,snapcraft-components' -o snapcraft-components.report-unused=false | NOMATCH "would be empty"
+  # Not fixable; --fix leaves the file alone.
+  cp snap/snapcraft.yaml before.yaml
+  craft-tidy --checks='-*,snapcraft-components' --fix > /dev/null
+  diff -u before.yaml snap/snapcraft.yaml
+  sed -i 's/translatons/translations/; s/\$CRAFT_COMPONENT_DOCS_PRIME/$CRAFT_COMPONENT_TRANSLATIONS_PRIME/' snap/snapcraft.yaml
+  craft-tidy --checks='-*,snapcraft-components' > out.txt
+  test ! -s out.txt

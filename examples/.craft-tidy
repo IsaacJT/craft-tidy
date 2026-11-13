@@ -15,7 +15,7 @@
 # leading `-` disables the matching checks. To run only some checks, start
 # with "-*" (e.g. "-*,style-*"): a positive glob such as "style-*" on its own
 # leaves every check enabled. Check names start with their
-# category (`project-`, `style-`). Run `craft-tidy --list-checks --checks='*'`
+# category (`project-`, `snapcraft-`, `style-`). Run `craft-tidy --list-checks --checks='*'`
 # to see them all.
 # This can also be a comma-separated string, e.g. "*,-style-sorted-lists" to
 # run every check except style-sorted-lists. Default: "*" (all checks).
@@ -36,6 +36,10 @@ fix: false
 # integers, floats or strings. Run `craft-tidy --explain CHECK` to see the
 # options supported by a check; unknown options are rejected.
 check-options:
+  snapcraft-components:
+    # Also report components that are defined but that no part puts files
+    # in, which would be packed empty. Default: true.
+    report-unused: true
   style-collapsed-sequences:
     # Sequences of strings with at most this many items must be written on
     # one line (`plugs: [home, network]`), longer ones one item per line.

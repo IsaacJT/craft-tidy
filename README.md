@@ -200,6 +200,7 @@ non-hidden parent directory) instead.
 | Check                   | Applies to | Fixable | Description                                               |
 | ----------------------- | ---------- | ------- | --------------------------------------------------------- |
 | `project-file-location` | Snapcraft  | No      | The project file must be in a `snap/` directory (`snap/` or `build-aux/snap/`) |
+| `snapcraft-components`  | Snapcraft  | No      | Components used by parts must be defined under `components` |
 | `style-collapsed-sequences` | All tools | Yes | Short sequences must be on one line, longer ones one item per line |
 | `style-line-length`     | All tools  | Partly  | Lines must not be longer than `max-length` characters     |
 | `style-sorted-lists`    | All tools  | Yes     | Entries of unordered lists must be sorted alphabetically  |
@@ -210,7 +211,7 @@ names them.
 Check names start with their category, so whole categories can be selected
 with globs such as `--checks='-*,style-*'`: `project-` checks are about the
 layout of the project, `style-` checks about the formatting of the project
-file.
+file, and `snapcraft-` checks about the content of Snapcraft projects.
 
 Run `craft-tidy --list-checks --checks='*'` to list all checks and
 `craft-tidy --explain CHECK` for details.
@@ -233,6 +234,37 @@ not moved by `--fix`; move it yourself, for example with
 `git mv snapcraft.yaml snap/snapcraft.yaml`. The other craft tools only read
 their project file from the project root, so the check does not apply to
 them.
+
+### snapcraft-components
+
+Snapcraft only. Reports [components](https://snapcraft.io/docs/explanation/how-snaps-work/snap-components/)
+that parts use but that are not defined under the top-level `components`
+key. Snapcraft rejects such projects, or for environment variables, the
+variable is silently empty. A part uses a component through:
+
+- a `(component/<name>)` path in its `organize` values, or its `stage` or
+  `prime` entries (including excluded `-(component/<name>)/…` entries and
+  entries inside advanced grammar);
+- a `$CRAFT_COMPONENT_<NAME>_STAGE`, `_PRIME` or `_OVERLAY` variable,
+  where `<NAME>` is the component name in uppercase with `-` replaced by
+  `_`;
+- `craftctl set components.<name>.<key>=…` (or `craftctl get`) in its
+  scripts.
+
+The closest defined name is suggested for likely typos:
+
+```text
+snap/snapcraft.yaml:12:22: warning: component 'translatons' is not defined under components; did you mean 'translations'? [snapcraft-components]
+```
+
+Components that are defined but that no part puts files in (through a path
+or a variable; setting metadata with `craftctl` does not count) are
+reported too, as they would be packed empty. Turn this off with
+`report-unused: false`. These problems are not fixed by `--fix`.
+
+| Option          | Type    | Default | Description |
+| --------------- | ------- | ------- | ----------- |
+| `report-unused` | boolean | `true`  | Also report defined components that no part puts files in |
 
 ### style-collapsed-sequences
 
