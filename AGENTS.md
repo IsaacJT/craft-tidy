@@ -12,7 +12,7 @@ Rust and distributed as a strictly confined snap. It is licensed
 
 The project is in early development: the CLI, the configuration system, the
 check framework and `--fix` exist. Implemented checks:
-`project-file-location`, `snapcraft-components`,
+`project-file-location`, `project-root-source`, `snapcraft-components`,
 `style-collapsed-sequences`, `style-line-length`,
 `style-redundant-platforms`, `style-sorted-lists`.
 
@@ -57,6 +57,14 @@ check framework and `--fix` exist. Implemented checks:
     `snapcraft.yaml`/`.snapcraft.yaml` whose (absolute) parent directory is
     not named `snap` (so `build-aux/snap/` is fine); Snapcraft-only
     (`crafts()`), path-only, no fix
+  - `src/checks/root_source.rs` - `project-root-source` (no options, no
+    fix; all tools but Charmcraft, whose `init` templates use `source: .`
+    for the charm plugin): part `source` values (scalars, or inside
+    grammar) that are a relative path to the project directory itself
+    (only `.` and empty components: `.`, `./`, `./.`). craft-parts' local
+    source only ignores `parts`/`stage`/`prime`/`overlay` and the app's
+    `source_ignore_patterns` (e.g. `*.snap`), so other artifacts are
+    copied and, with `--destructive-mode`, trigger re-pulls
   - `src/checks/collapsed_sequences.rs` - `style-collapsed-sequences`
     (option `max-collapsed-items`, default 1): sequences of single-line
     strings that are a key's value must be flow (`[a, b]`) up to the limit
@@ -185,7 +193,8 @@ change). The CONTRIBUTING checklists are the complete list of steps,
 including tests, docs, `examples/.craft-tidy` and the spread tasks.
 
 - Names are kebab-case with a category prefix. Existing categories:
-  `project-` (project layout), `style-` (how the project file is written:
+  `project-` (project layout and how parts use it), `style-` (how the
+  project file is written:
   formatting and redundancy),
   `snapcraft-` (content of Snapcraft projects; such checks are
   Snapcraft-only via `crafts()`).

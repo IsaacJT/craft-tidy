@@ -166,3 +166,11 @@ execute: |
       build-for: [arm64]
   EOF
   diff -u expected.yaml charmcraft.yaml
+
+  # Parts should not use the whole project directory as their source.
+  mkdir -p "$WORK/rootsource"
+  cd "$WORK/rootsource"
+  printf 'name: x\nparts:\n  app:\n    plugin: dump\n    source: .\n  lib:\n    plugin: dump\n    source: lib\n' > charmcraft.yaml
+  craft-tidy --checks='-*,project-root-source' > out.txt
+  # Except for Charmcraft, whose charm plugin builds from there.
+  test ! -s out.txt

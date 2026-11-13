@@ -162,3 +162,13 @@ execute: |
       build-for: [arm64]
   EOF
   diff -u expected.yaml imagecraft.yaml
+
+  # Parts should not use the whole project directory as their source.
+  mkdir -p "$WORK/rootsource"
+  cd "$WORK/rootsource"
+  printf 'name: x\nparts:\n  app:\n    plugin: dump\n    source: .\n  lib:\n    plugin: dump\n    source: lib\n' > imagecraft.yaml
+  craft-tidy --checks='-*,project-root-source' > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "imagecraft.yaml:5:13: warning: part 'app' uses the whole project directory as its source \\('\\.'\\), so it picks up build artifacts there" < out.txt
+  craft-tidy --checks='-*,project-root-source' --fix | MATCH "cannot be fixed: craft-tidy cannot know which directory holds the code"

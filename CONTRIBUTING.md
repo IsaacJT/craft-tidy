@@ -139,7 +139,8 @@ Guidelines:
 
 1. Pick a kebab-case name prefixed with a category, so that users can
    select related checks with globs such as `style-*`. Reuse an existing
-   category (`project-` for the project layout, `style-` for how the project
+   category (`project-` for the project layout and how parts use it,
+   `style-` for how the project
    file is written, such as formatting and redundancy,
    `snapcraft-` for the content of Snapcraft projects)
    where it fits, and document any new category in `README.md`.

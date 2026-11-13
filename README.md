@@ -254,6 +254,7 @@ non-hidden parent directory) instead.
 | Check                   | Applies to | Fixable | Description                                               |
 | ----------------------- | ---------- | ------- | --------------------------------------------------------- |
 | `project-file-location` | Snapcraft  | No      | The project file must be in a `snap/` directory (`snap/` or `build-aux/snap/`) |
+| `project-root-source`   | All but Charmcraft | No | Parts should not use the whole project directory (`source: .`) as their source |
 | `snapcraft-components`  | Snapcraft  | No      | Components used by parts must be defined under `components` |
 | `style-collapsed-sequences` | All tools | Yes | Short sequences must be on one line, longer ones one item per line |
 | `style-line-length`     | All tools  | Partly  | Lines must not be longer than `max-length` characters     |
@@ -265,7 +266,7 @@ names them.
 
 Check names start with their category, so whole categories can be selected
 with globs such as `--checks='-*,style-*'`: `project-` checks are about the
-layout of the project, `style-` checks about how the project file is
+layout of the project and how parts use it, `style-` checks about how the project file is
 written (its formatting, and redundant definitions), and `snapcraft-`
 checks about the content of Snapcraft projects.
 
@@ -290,6 +291,28 @@ not moved by `--fix`; move it yourself, for example with
 `git mv snapcraft.yaml snap/snapcraft.yaml`. The other craft tools only read
 their project file from the project root, so the check does not apply to
 them.
+
+### project-root-source
+
+Reports parts whose `source` is the project directory itself, such as
+`source: .` or `source: ./` (also inside advanced grammar). Does not apply
+to Charmcraft, whose charm plugin builds the charm from the project
+directory by design.
+
+Such a part's source is everything in the project directory: the
+packaging, and any build artifacts and generated files, such as `target/`,
+`build/`, `node_modules/`, `.git/` or component files. The tools only
+exclude their own work directories (`parts/`, `stage/`, `prime/`) and
+packages (such as `*.snap`). So all of it is copied into the part's source
+directory, which is slow for large projects, and when building with
+`--destructive-mode`, where the project directory is also the build
+directory, changes to any of these files make the part look out of date,
+so it is pulled and built again.
+
+Point `source` at the directory that contains the code instead, such as
+`source: src`. This is not fixed by `--fix`, as craft-tidy cannot know
+which directory that is; if the whole project really is the source,
+suppress the finding with `# NOLINT(project-root-source)`.
 
 ### snapcraft-components
 

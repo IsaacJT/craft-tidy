@@ -7,6 +7,7 @@ mod components;
 mod line_length;
 mod project_file_location;
 mod redundant_platforms;
+mod root_source;
 mod sorted_lists;
 
 use std::fmt;
@@ -198,6 +199,7 @@ pub fn registry() -> Vec<Box<dyn Check>> {
         Box::new(line_length::LineLength),
         Box::new(project_file_location::ProjectFileLocation),
         Box::new(redundant_platforms::RedundantPlatforms),
+        Box::new(root_source::RootSource),
         Box::new(sorted_lists::SortedLists),
     ];
     checks.sort_by_key(|check| check.name());
