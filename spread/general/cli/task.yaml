@@ -1,0 +1,27 @@
+summary: Informational options and usage errors
+
+execute: |
+  craft-tidy --version | MATCH "^craft-tidy 0\.1\.0$"
+  craft-tidy --help | MATCH "craft tools"
+
+  craft-tidy --list-checks --checks='*' > checks.out
+  MATCH "project-file-location .*\(snapcraft only\)" < checks.out
+  MATCH "style-line-length" < checks.out
+  MATCH "style-sorted-lists" < checks.out
+
+  craft-tidy --explain style-line-length | MATCH "max-length"
+  craft-tidy --explain project-file-location | MATCH "^Applies to: snapcraft$"
+
+  # Usage errors exit with status 2.
+  set +e
+  craft-tidy --explain no-such-check 2> err.out
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "no-such-check" < err.out
+
+  set +e
+  craft-tidy --no-such-flag
+  status=$?
+  set -e
+  test "$status" -eq 2

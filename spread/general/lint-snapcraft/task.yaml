@@ -1,0 +1,50 @@
+summary: Lint Snapcraft projects in home directories
+
+execute: |
+  # A clean project passes.
+  mkdir -p "$WORK/clean/snap"
+  cat > "$WORK/clean/snap/snapcraft.yaml" <<'EOF'
+  name: clean
+  base: core24
+  version: '1.0'
+  summary: A clean project
+  description: Nothing to report.
+  confinement: strict
+  parts:
+    clean:
+      plugin: nil
+      build-packages:
+        - curl
+        - git
+  EOF
+  craft-tidy "$WORK/clean" > out.txt
+  test ! -s out.txt
+
+  # Problems are reported with locations, as warnings by default.
+  mkdir -p "$WORK/messy"
+  cat > "$WORK/messy/snapcraft.yaml" <<'EOF'
+  name: messy
+  summary: This summary is far too long to fit on a single line of eighty characters
+  parts:
+    messy:
+      plugin: nil
+      stage-packages: [zlib1g, curl]
+  EOF
+  cd "$WORK/messy"
+  craft-tidy > out.txt
+  cat out.txt
+  MATCH "snapcraft.yaml: warning: .*\[project-file-location\]" < out.txt
+  MATCH "snapcraft.yaml:2:81: warning: .*\[style-line-length\]" < out.txt
+  MATCH "snapcraft.yaml:6:.*\[style-sorted-lists\]" < out.txt
+
+  # warnings-as-errors makes the run fail.
+  set +e
+  craft-tidy --warnings-as-errors='style-*' > out.txt
+  status=$?
+  set -e
+  test "$status" -eq 1
+  MATCH "error: .*\[style-line-length\]" < out.txt
+
+  # Check selection and options.
+  craft-tidy --checks='-*,style-line-length' -o style-line-length.max-length=100 > out.txt
+  test ! -s out.txt

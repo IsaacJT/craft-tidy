@@ -1,0 +1,50 @@
+summary: Fix problems in place
+
+execute: |
+  mkdir -p "$WORK/project/snap"
+  cat > "$WORK/project/snap/snapcraft.yaml" <<'EOF'
+  name: fixme
+  summary: A project to fix
+  description: This description is long enough that it has to be wrapped onto another line.
+  parts:
+    fixme:
+      plugin: nil
+      build-packages:
+        - zlib1g-dev
+        - curl
+        - on arm64:
+            - libfoo-arm
+        - else:
+            - libfoo
+      plugs: [network, home, audio-playback]
+  EOF
+
+  craft-tidy --fix "$WORK/project" > out.txt 2> err.txt
+  cat err.txt
+  MATCH "applied fixes to .*snapcraft.yaml" < err.txt
+  test ! -s out.txt
+
+  cat > expected.yaml <<'EOF'
+  name: fixme
+  summary: A project to fix
+  description: This description is long enough that it has to be wrapped onto
+    another line.
+  parts:
+    fixme:
+      plugin: nil
+      build-packages:
+        - curl
+        - zlib1g-dev
+        - on arm64:
+            - libfoo-arm
+        - else:
+            - libfoo
+      plugs: [audio-playback, home, network]
+  EOF
+  diff -u expected.yaml "$WORK/project/snap/snapcraft.yaml"
+
+  # Fixing is idempotent and the result is clean.
+  craft-tidy --fix "$WORK/project" > out.txt 2> err.txt
+  test ! -s out.txt
+  test ! -s err.txt
+  diff -u expected.yaml "$WORK/project/snap/snapcraft.yaml"

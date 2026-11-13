@@ -30,6 +30,28 @@ snapcraft pack
 sudo snap install --dangerous ./craft-tidy_*.snap
 ```
 
+### Testing the snap
+
+The [spread](https://github.com/canonical/spread) suite in `spread/general/`
+installs the built snap in a fresh Ubuntu VM and runs it end to end, under
+strict confinement: informational options, linting Snapcraft and other
+craft projects, `--fix`, configuration files and error handling. Run it from
+the repository root (it needs LXD, as `snapcraft pack` does):
+
+```sh
+snapcraft test                                # all tasks
+snapcraft test craft:ubuntu-26.04:spread/general/fix   # a single task
+```
+
+`snapcraft-test.yaml` defines the backend and the suite;
+`spread/.extension` is Snapcraft's stock backend script, changed to wait for
+cloud-init before using apt. Each task is a `task.yaml` in its own
+directory under `spread/general/`. Tasks create their projects in `$WORK`
+(`/root/work`, emptied before and after each task), since the snap can only
+reach non-hidden files in home directories, and check output with spread's
+`MATCH`/`NOMATCH`. Add a task when you add user-visible behaviour, such as
+a new check.
+
 ### Checking every commit
 
 Every commit must pass the cargo checks above and build the snap. To verify

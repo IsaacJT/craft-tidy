@@ -1,0 +1,18 @@
+summary: Missing and invalid project files
+
+execute: |
+  cd "$WORK"
+  set +e
+  craft-tidy 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "no craft project file found" < err.txt
+
+  printf 'name: test\nparts: [a\n' > snapcraft.yaml
+  set +e
+  craft-tidy 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "snapcraft.yaml:2:.*invalid YAML" < err.txt

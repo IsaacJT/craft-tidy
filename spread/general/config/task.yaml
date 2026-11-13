@@ -1,0 +1,36 @@
+summary: Read the configuration from .craft-tidy and the command line
+
+execute: |
+  mkdir -p "$WORK/project/snap"
+  cd "$WORK/project"
+  printf 'name: test\nsummary: %s\n' "$(printf 'x%.0s' $(seq 90))" > snap/snapcraft.yaml
+
+  craft-tidy | MATCH "\[style-line-length\]"
+
+  # .craft-tidy in the project directory is found and applied.
+  cat > .craft-tidy <<'EOF'
+  check-options:
+    style-line-length:
+      max-length: 120
+  EOF
+  craft-tidy > out.txt
+  test ! -s out.txt
+  craft-tidy --dump-config | MATCH "max-length: 120"
+
+  # --no-config ignores it, and flags override it.
+  craft-tidy --no-config | MATCH "\[style-line-length\]"
+  craft-tidy -o style-line-length.max-length=50 | MATCH "\[style-line-length\]"
+
+  # --dump-config output is itself a valid configuration file.
+  craft-tidy --dump-config > dumped
+  craft-tidy --config-file dumped --dump-config > dumped-again
+  diff -u dumped dumped-again
+
+  # Invalid configuration is rejected with status 2.
+  echo "no-such-setting: 1" > .craft-tidy
+  set +e
+  craft-tidy 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "no-such-setting" < err.txt

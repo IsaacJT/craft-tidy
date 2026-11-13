@@ -66,6 +66,10 @@ check framework and `--fix` exist. Implemented checks:
   `craft-tidy/tests/example.rs`
 - `snap/snapcraft.yaml` - snap packaging (base `core26`, `rust` plugin,
   part source `craft-tidy/`, `home` plug)
+- `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
+  `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
+  projects go in `$WORK` (`/root/work`); `spread/.extension` is Snapcraft's
+  template plus a cloud-init wait
 - `README.md` - user-facing introduction, usage and configuration reference
 - `CONTRIBUTING.md` - contributor workflow, code structure, how to add checks
   and settings
@@ -166,15 +170,19 @@ cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 ```
 
-Run from the repository root to build the snap:
+Run from the repository root to build the snap, and to run the spread
+tests against it in a VM:
 
 ```sh
 snapcraft pack
+snapcraft test
 ```
 
 Before finishing a change, ensure `cargo fmt`, `cargo clippy` (no warnings)
 and `cargo test` all pass, and that `snapcraft pack` succeeds. Snap builds
 take a few minutes; run them in the background while doing other work.
+For changes to user-visible behaviour, also run `snapcraft test` and add
+or update spread tasks in `spread/general/`.
 
 ## Committing
 

@@ -1,0 +1,28 @@
+backends:
+  craft:
+    type: craft
+    systems:
+      - ubuntu-26.04
+
+suites:
+  spread/general/:
+    summary: End-to-end tests of the installed craft-tidy snap
+    environment:
+      # Projects are created in root's home directory, which the strictly
+      # confined snap can reach through the home interface.
+      WORK: /root/work
+    prepare: |
+      snap install "$CRAFT_ARTIFACT" --dangerous
+    restore: |
+      snap remove craft-tidy --purge
+    prepare-each: |
+      rm -rf "$WORK"
+      mkdir -p "$WORK"
+    restore-each: |
+      rm -rf "$WORK"
+
+exclude:
+  - .git
+  - craft-tidy/target
+
+kill-timeout: 30m
