@@ -115,7 +115,7 @@ pub struct OptionSpec {
 /// A lint check.
 ///
 /// Check names are kebab-case and prefixed with their category, e.g.
-/// `metadata-summary-length`, so that users can select them with globs.
+/// `style-line-length`, so that users can select them with globs.
 pub trait Check {
     fn name(&self) -> &'static str;
     /// One-line description, shown by `--list-checks`.

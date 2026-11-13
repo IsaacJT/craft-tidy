@@ -138,7 +138,11 @@ fn example_config_is_accepted_without_warnings() {
     let output = craft_tidy(dir.path(), &["--config-file", example, "--dump-config"]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_eq!(stderr(&output), "");
-    assert!(stdout(&output).contains("checks: \"*,-experimental-*\""));
+    assert!(
+        stdout(&output).starts_with("checks: \"*\"\n"),
+        "{}",
+        stdout(&output)
+    );
 
     let output = craft_tidy(dir.path(), &["--config-file", example]);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));

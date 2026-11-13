@@ -46,7 +46,7 @@ Findings are printed one per line as
 | `--warnings-as-errors GLOBS`           | Report findings from matching checks as errors                      |
 | `--fix`                                | Fix problems where possible (see [Fixing problems](#fixing-problems)) |
 | `--no-fix`                             | Do not fix problems, even if `fix: true` is configured              |
-| `-o`, `--check-option CHECK.KEY=VALUE` | Set a check option, e.g. `-o metadata-summary-length.max-length=79`; may be repeated |
+| `-o`, `--check-option CHECK.KEY=VALUE` | Set a check option, e.g. `-o style-line-length.max-length=100`; may be repeated |
 | `--config YAML`                        | Inline configuration, in the same format as `.craft-tidy`           |
 | `--config-file PATH`                   | Use PATH instead of searching for `.craft-tidy`                     |
 | `--no-config`                          | Do not read any configuration file                                  |
@@ -91,11 +91,12 @@ in each of its parent directories; the first one found is used.
 
 ```yaml
 # .craft-tidy
-checks: "-*,metadata-*,parts-*,-parts-deprecated-plugin"
-warnings-as-errors: "metadata-*"
+checks: "*,-style-sorted-lists"
+warnings-as-errors: "project-*"
+fix: true
 check-options:
-  metadata-summary-length:
-    max-length: 79
+  style-line-length:
+    max-length: 100
 ```
 
 A fully commented example covering every key is available in
@@ -128,8 +129,8 @@ works with an older one.
 Checks are selected with comma-separated globs, as in clang-tidy. `*`
 matches any sequence of characters and a leading `-` disables the matching
 checks. Globs are evaluated in order and the last one matching a check
-decides whether it is enabled. For example, `-*,parts-*,-parts-foo` enables
-all `parts-*` checks except `parts-foo`.
+decides whether it is enabled. For example, `-*,style-*,-style-sorted-lists`
+enables all `style-*` checks except `style-sorted-lists`.
 
 ### Precedence
 
@@ -141,7 +142,8 @@ Settings are combined from these sources, each overriding the previous ones:
 4. Individual command line flags
 
 Glob lists (`checks`, `warnings-as-errors`) from later sources are appended
-to earlier ones, so `--checks=-parts-foo` disables `parts-foo` on top of
+to earlier ones, so `--checks=-style-sorted-lists` disables
+`style-sorted-lists` on top of
 whatever the configuration file enables. Other settings, such as `fix`, are
 replaced by later sources, and check options are overridden individually.
 Use `--dump-config` to see the result; its output is itself a valid

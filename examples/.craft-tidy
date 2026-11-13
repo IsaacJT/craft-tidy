@@ -2,21 +2,24 @@
 #
 # Copy this file to the root of your Snapcraft project as `.craft-tidy`.
 # craft-tidy looks for it in the project directory and its parents. Every key
-# is optional; omitted keys keep their defaults. Command line flags override
-# the values in this file (see `craft-tidy --help`), and
+# is optional; omitted keys keep their defaults. Every value below is the
+# default, so the copy changes nothing until you edit it. Command line flags
+# override the values in this file (see `craft-tidy --help`), and
 # `craft-tidy --dump-config` shows the effective configuration.
 
 # Globs selecting the checks to run, evaluated left to right; the last glob
 # matching a check decides whether it runs. `*` matches any characters and a
-# leading `-` disables the matching checks. Default: "*" (all checks).
-# This can also be written as a YAML list.
+# leading `-` disables the matching checks. Check names start with their
+# category (`project-`, `style-`). Run `craft-tidy --list-checks` to see them.
+# This can also be a comma-separated string, e.g. "*,-style-sorted-lists" to
+# run every check except style-sorted-lists. Default: "*" (all checks).
 checks:
   - "*"
-  - "-experimental-*"
 
 # Globs selecting checks whose findings are reported as errors, which makes
-# craft-tidy exit with status 1. Default: "" (all findings are warnings).
-warnings-as-errors: "metadata-*,parts-*"
+# craft-tidy exit with status 1, e.g. "project-*,style-line-length".
+# Default: "" (all findings are warnings).
+warnings-as-errors: ""
 
 # Whether to fix problems where possible, rewriting the project file in
 # place before reporting what remains. Same as passing `--fix`; `--no-fix`

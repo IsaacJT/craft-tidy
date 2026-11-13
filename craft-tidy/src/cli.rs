@@ -36,7 +36,7 @@ pub struct Cli {
     pub path: PathBuf,
 
     /// Comma-separated globs selecting checks to run. Prefix a glob with '-'
-    /// to disable matching checks, e.g. '-*,parts-*'. Appended to the globs
+    /// to disable matching checks, e.g. '-*,style-*'. Appended to the globs
     /// from the configuration file.
     #[arg(long, value_name = "GLOBS", value_parser = parse_globs)]
     pub checks: Option<GlobList>,
@@ -55,7 +55,7 @@ pub struct Cli {
     #[arg(long, overrides_with_all = ["fix", "no_fix"])]
     pub no_fix: bool,
 
-    /// Set an option for a check, e.g. 'metadata-summary-length.max-length=79'.
+    /// Set an option for a check, e.g. 'style-line-length.max-length=100'.
     /// The value is interpreted as a YAML scalar. May be repeated.
     #[arg(
         short = 'o',

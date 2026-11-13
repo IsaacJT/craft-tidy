@@ -23,11 +23,8 @@ fn keys(yaml: &str) -> BTreeSet<String> {
 #[test]
 fn example_is_a_valid_configuration() {
     let settings = Settings::from_file(&example_config()).unwrap();
-    assert_eq!(settings.checks.to_string(), "*,-experimental-*");
-    assert_eq!(
-        settings.warnings_as_errors.to_string(),
-        "metadata-*,parts-*"
-    );
+    assert_eq!(settings.checks.to_string(), "*");
+    assert!(settings.warnings_as_errors.is_empty());
     assert_eq!(settings.fix, Some(false));
     assert_eq!(
         settings
@@ -41,11 +38,37 @@ fn example_is_a_valid_configuration() {
             .get("style-sorted-lists", "case-sensitive"),
         Some(&OptionValue::Bool(false))
     );
+}
 
-    assert!(settings.checks.matches("parts-plugin"));
-    assert!(!settings.checks.matches("experimental-thing"));
-    assert!(settings.warnings_as_errors.matches("metadata-summary"));
-    assert!(!settings.warnings_as_errors.matches("other-check"));
+#[test]
+fn example_is_the_default_configuration() {
+    let mut from_example = Settings::defaults();
+    from_example.merge(Settings::from_file(&example_config()).unwrap());
+    let mut expected = Settings::defaults();
+    for check in checks::registry() {
+        for spec in check.options() {
+            expected
+                .check_options
+                .set(check.name(), spec.name, OptionValue::parse(spec.default));
+        }
+    }
+    let registry = checks::registry();
+    let enabled = |settings: &Settings| -> Vec<_> {
+        checks::enabled(&registry, settings)
+            .iter()
+            .map(|check| check.name())
+            .collect()
+    };
+    assert_eq!(enabled(&from_example), enabled(&expected));
+    for check in &registry {
+        assert_eq!(
+            from_example.warnings_as_errors.matches(check.name()),
+            expected.warnings_as_errors.matches(check.name()),
+            "{}",
+            check.name()
+        );
+    }
+    assert_eq!(from_example.fix, expected.fix);
 }
 
 #[test]
@@ -130,14 +153,24 @@ fn command_line_flags_override_the_example() {
     let resolved = craft_tidy::app::resolve_settings(&cli(&[
         "--config-file",
         example.to_str().unwrap(),
-        "--checks=experimental-x",
-        "--warnings-as-errors=-parts-*",
+        "--checks=-style-sorted-lists",
+        "--warnings-as-errors=project-*",
+        "--fix",
+        "-o",
+        "style-line-length.max-length=100",
     ]))
     .unwrap();
-    assert!(resolved.checks.matches("experimental-x"));
-    assert!(!resolved.checks.matches("experimental-y"));
-    assert!(resolved.warnings_as_errors.matches("metadata-a"));
-    assert!(!resolved.warnings_as_errors.matches("parts-a"));
+    assert!(resolved.checks.matches("style-line-length"));
+    assert!(!resolved.checks.matches("style-sorted-lists"));
+    assert!(resolved.warnings_as_errors.matches("project-file-location"));
+    assert!(!resolved.warnings_as_errors.matches("style-line-length"));
+    assert_eq!(resolved.fix, Some(true));
+    assert_eq!(
+        resolved
+            .check_options
+            .get("style-line-length", "max-length"),
+        Some(&OptionValue::Integer(100))
+    );
 }
 
 #[test]
