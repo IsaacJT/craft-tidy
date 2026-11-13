@@ -1,6 +1,11 @@
 summary: Lint snapcraft projects
 
 execute: |
+  # The sections before the style-collapsed-sequences one use flow lists
+  # to test other checks, so they run without it, through a .craft-tidy that
+  # every project below $WORK finds.
+  echo 'checks: -style-collapsed-sequences' > "$WORK/.craft-tidy"
+
   # Project files are looked for in Snapcraft's order, and only the first
   # one found is linted.
   mkdir -p "$WORK/order/snap" "$WORK/order/build-aux/snap"
@@ -35,7 +40,7 @@ execute: |
         - curl
         - git
         - make
-      stage-packages: [libssl3t64, zlib1g]
+      stage-packages: [libssl3t64]
   EOF
   craft-tidy "$WORK/clean" > out.txt
   test ! -s out.txt
@@ -69,6 +74,8 @@ execute: |
   craft-tidy --checks='-*,style-line-length' -o style-line-length.max-length=100 > out.txt
   test ! -s out.txt
 
+  rm "$WORK/.craft-tidy"
+
   # Short sequences go on one line, longer ones one item per line.
   mkdir -p $WORK/collapse/snap
   cd $WORK/collapse
@@ -84,8 +91,8 @@ execute: |
   craft-tidy > out.txt
   cat out.txt
   test "$(wc -l < out.txt)" -eq 2
-  MATCH "snap/snapcraft.yaml:6:7: warning: sequence has 1 item\(s\), at most 2; write it on one line as \[other\] \[style-collapsed-sequences\]" < out.txt
-  MATCH "snap/snapcraft.yaml:7:21: warning: sequence has 3 items, more than 2; write one item per line \[style-collapsed-sequences\]" < out.txt
+  MATCH "snap/snapcraft.yaml:6:7: warning: sequence has 1 item\(s\), at most 1; write it on one line as \[other\] \[style-collapsed-sequences\]" < out.txt
+  MATCH "snap/snapcraft.yaml:7:21: warning: sequence has 3 items, more than 1; write one item per line \[style-collapsed-sequences\]" < out.txt
   craft-tidy -o style-collapsed-sequences.max-collapsed-items=3 | NOMATCH "\.yaml:7:"
   craft-tidy --fix > out.txt 2> err.txt
   test ! -s out.txt

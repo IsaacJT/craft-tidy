@@ -11,7 +11,7 @@ use crate::fix::{Edit, apply_edits};
 use crate::yaml::{CollectionStyle, Document, Node, NodeKind, ScalarStyle};
 
 const NAME: &str = "style-collapsed-sequences";
-const DEFAULT_MAX_ITEMS: usize = 2;
+const DEFAULT_MAX_ITEMS: usize = 1;
 
 /// `style-line-length`'s option and default, which decide whether a
 /// collapsed sequence fits on its line.
@@ -25,7 +25,7 @@ const DEFAULT_INDENT: usize = 2;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "max-collapsed-items",
     kind: OptionKind::Integer,
-    default: "2",
+    default: "1",
     description: "Sequences with at most this many items are written on one line \
                   ([a, b]); longer ones as block sequences, one item per line.",
 }];

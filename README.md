@@ -278,15 +278,14 @@ reported too, as they would be packed empty. Turn this off with
 ### style-collapsed-sequences
 
 Reports sequences of strings that are written in the wrong style for their
-size: sequences with at most `max-collapsed-items` items (default: 2) must
+size: sequences with at most `max-collapsed-items` items (default: 1) must
 be written on one line, and longer ones one item per line:
 
 ```yaml
-plugs: [home, network]
+plugs: [home]
 build-packages:
   - cmake
   - curl
-  - zlib1g-dev
 ```
 
 A short sequence stays one item per line, and is not reported, if writing
@@ -306,7 +305,7 @@ the file (two spaces past the key if there are none).
 
 | Option                | Type    | Default | Description |
 | --------------------- | ------- | ------- | ----------- |
-| `max-collapsed-items` | integer | `2`     | Largest number of items written on one line; `0` puts every sequence one item per line |
+| `max-collapsed-items` | integer | `1`     | Largest number of items written on one line; `0` puts every sequence one item per line |
 
 ### style-line-length
 

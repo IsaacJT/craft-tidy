@@ -1,6 +1,11 @@
 summary: Lint imagecraft projects
 
 execute: |
+  # The sections before the style-collapsed-sequences one use flow lists
+  # to test other checks, so they run without it, through a .craft-tidy that
+  # every project below $WORK finds.
+  echo 'checks: -style-collapsed-sequences' > "$WORK/.craft-tidy"
+
   cd "$WORK"
 
   # Only imagecraft.yaml in the project root is read, like imagecraft does.
@@ -86,6 +91,8 @@ execute: |
   head -n1 out.txt | MATCH "^\./imagecraft.yaml:11:"
   tail -n1 out.txt | MATCH "^\./snap/snapcraft.yaml:2:"
 
+  rm "$WORK/.craft-tidy"
+
   # Short sequences go on one line, longer ones one item per line.
   mkdir -p $WORK/collapse
   cd $WORK/collapse
@@ -101,8 +108,8 @@ execute: |
   craft-tidy > out.txt
   cat out.txt
   test "$(wc -l < out.txt)" -eq 2
-  MATCH "imagecraft.yaml:6:7: warning: sequence has 1 item\(s\), at most 2; write it on one line as \[other\] \[style-collapsed-sequences\]" < out.txt
-  MATCH "imagecraft.yaml:7:21: warning: sequence has 3 items, more than 2; write one item per line \[style-collapsed-sequences\]" < out.txt
+  MATCH "imagecraft.yaml:6:7: warning: sequence has 1 item\(s\), at most 1; write it on one line as \[other\] \[style-collapsed-sequences\]" < out.txt
+  MATCH "imagecraft.yaml:7:21: warning: sequence has 3 items, more than 1; write one item per line \[style-collapsed-sequences\]" < out.txt
   craft-tidy -o style-collapsed-sequences.max-collapsed-items=3 | NOMATCH "\.yaml:7:"
   craft-tidy --fix > out.txt 2> err.txt
   test ! -s out.txt

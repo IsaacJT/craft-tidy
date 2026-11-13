@@ -12,11 +12,18 @@ use common::pyyaml_equal;
 
 const NAME: &str = "style-collapsed-sequences";
 
-/// Settings running only this check (or `extra` checks too), with the given
-/// options.
+/// The limit the examples in these tests are written for; the default is
+/// tested separately.
+const MAX_ITEMS: i64 = 2;
+
+/// Settings running only this check (or `extra` checks too), with
+/// `max-collapsed-items` set to [`MAX_ITEMS`] and the given options.
 fn settings_with(extra: &str, options: &[(&str, &str, i64)]) -> Settings {
     let mut settings = Settings::defaults();
     settings.checks = format!("-*,{NAME}{extra}").parse().unwrap();
+    settings
+        .check_options
+        .set(NAME, "max-collapsed-items", OptionValue::Integer(MAX_ITEMS));
     for (check, key, value) in options {
         settings
             .check_options
@@ -85,6 +92,32 @@ fn fixed(source: &str) -> Option<String> {
 }
 
 // Reporting
+
+#[test]
+fn the_default_limit_is_one_item() {
+    let mut settings = Settings::defaults();
+    settings.checks = format!("-*,{NAME}").parse().unwrap();
+    assert!(findings_with("plugs: [home]\nslots:\n  - a\n  - b\n", &settings).is_empty());
+    assert_eq!(
+        findings_with("plugs: [home, network]\nslots:\n  - a\n", &settings),
+        [
+            (
+                1,
+                8,
+                "sequence has 2 items, more than 1; write one item per line".to_owned()
+            ),
+            (
+                3,
+                3,
+                "sequence has 1 item(s), at most 1; write it on one line as [a]".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(
+        fixed_with("plugs: [home, network]\nslots:\n  - a\n", &settings).as_deref(),
+        Some("plugs:\n  - home\n  - network\nslots: [a]\n")
+    );
+}
 
 #[test]
 fn accepts_sequences_in_the_right_style() {

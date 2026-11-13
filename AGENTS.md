@@ -47,7 +47,7 @@ check framework and `--fix` exist. Implemented checks:
     not named `snap` (so `build-aux/snap/` is fine); Snapcraft-only
     (`crafts()`), path-only, no fix
   - `src/checks/collapsed_sequences.rs` - `style-collapsed-sequences`
-    (option `max-collapsed-items`, default 2): sequences of single-line
+    (option `max-collapsed-items`, default 1): sequences of single-line
     strings that are a key's value must be flow (`[a, b]`) up to the limit
     and block above it; short ones stay block if the flow form would exceed
     `style-line-length`'s `max-length` (read from that check's options).

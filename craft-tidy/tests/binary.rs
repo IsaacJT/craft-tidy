@@ -231,8 +231,9 @@ parts:
       craftctl default
 ";
     fs::write(&file, source).unwrap();
+    let args = ["--checks=-*,style-sorted-lists"];
 
-    let output = craft_tidy(dir.path(), &[]);
+    let output = craft_tidy(dir.path(), &args);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         stdout(&output),
@@ -242,7 +243,7 @@ parts:
          sorted: 'liba' should come before 'libb' [style-sorted-lists]\n"
     );
 
-    let output = craft_tidy(dir.path(), &["--fix"]);
+    let output = craft_tidy(dir.path(), &[&args[..], &["--fix"]].concat());
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert_eq!(stdout(&output), "");
     assert_eq!(
@@ -272,7 +273,7 @@ fn sorted_list_keys_are_configurable() {
         "plugs: [b, a]\ncommand-chain: [b, a]\n",
     )
     .unwrap();
-    let output = craft_tidy(dir.path(), &[]);
+    let output = craft_tidy(dir.path(), &["--checks=-*,style-sorted-lists"]);
     assert!(stdout(&output).contains(":2:"), "{}", stdout(&output));
     assert!(!stdout(&output).contains(":1:"), "{}", stdout(&output));
 
@@ -406,7 +407,12 @@ fn lints_the_project_files_of_all_craft_tools() {
     fs::write(dir.path().join("snapcraft.yaml"), "a: 1\n").unwrap();
     let output = craft_tidy(
         dir.path(),
-        &["--no-config", "-o", "style-sorted-lists.keys=a"],
+        &[
+            "--no-config",
+            "--checks=-style-collapsed-sequences",
+            "-o",
+            "style-sorted-lists.keys=a",
+        ],
     );
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     let out = stdout(&output);
