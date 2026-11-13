@@ -68,6 +68,8 @@ check framework and `--fix` exist. Implemented checks:
   part source `craft-tidy/`, `home` plug)
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
+  one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
+  `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`;
   projects go in `$WORK` (`/root/work`); `spread/.extension` is Snapcraft's
   template plus a cloud-init wait
 - `README.md` - user-facing introduction, usage and configuration reference
@@ -181,8 +183,13 @@ snapcraft test
 Before finishing a change, ensure `cargo fmt`, `cargo clippy` (no warnings)
 and `cargo test` all pass, and that `snapcraft pack` succeeds. Snap builds
 take a few minutes; run them in the background while doing other work.
-For changes to user-visible behaviour, also run `snapcraft test` and add
-or update spread tasks in `spread/general/`.
+For changes to user-visible behaviour, also run `snapcraft test`.
+
+Keep the spread tasks in `spread/general/` up to date as the tool
+develops, in the same commit as the change: a new or changed check gets
+assertions in the task of every craft tool it applies to (and none where
+it does not apply), a new craft tool gets its own task, and new options,
+settings or exit behaviour go in `cli`, `config`, `errors` or `fix`.
 
 ## Committing
 

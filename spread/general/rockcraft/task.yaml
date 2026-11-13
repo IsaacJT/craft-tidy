@@ -1,0 +1,80 @@
+summary: Lint rockcraft projects
+
+execute: |
+  cd "$WORK"
+
+  # Only rockcraft.yaml in the project root is read, like rockcraft does.
+  mkdir -p rock build-aux
+  cat > rock/rockcraft.yaml <<'EOF'
+  name: my-rock
+  base: ubuntu@24.04
+  version: '1.0'
+  summary: A rock for testing craft-tidy
+  description: A rock for testing craft-tidy.
+  platforms:
+    amd64:
+  parts:
+    my-rock:
+      plugin: nil
+      stage-packages: [python3, ca-certificates]
+  EOF
+  cp rock/rockcraft.yaml original.yaml
+  cp rock/rockcraft.yaml .rockcraft.yaml
+  cp rock/rockcraft.yaml build-aux/rockcraft.yaml
+  set +e
+  craft-tidy 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "no craft project file found" < err.txt
+
+  # Problems are reported with locations. project-file-location only
+  # applies to Snapcraft, so a rockcraft.yaml in the root is fine.
+  mv rock/rockcraft.yaml rockcraft.yaml
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "^\./rockcraft.yaml:11:[0-9]+: warning: .*\[style-sorted-lists\]" < out.txt
+  NOMATCH "project-file-location" < out.txt
+
+  # The file can also be given explicitly.
+  craft-tidy "$WORK/rockcraft.yaml" | MATCH "rockcraft.yaml:11:.*\[style-sorted-lists\]"
+
+  # Long lines are found too.
+  sed -i 's/^summary: .*/summary: A summary that is far too long for a single line of eighty characters here/' rockcraft.yaml
+  craft-tidy | MATCH "rockcraft.yaml:4:81: warning: .*\[style-line-length\]"
+
+  # --fix wraps and sorts without changing the data, and is idempotent.
+  craft-tidy --fix > out.txt 2> err.txt
+  MATCH "applied fixes to .*rockcraft.yaml" < err.txt
+  test ! -s out.txt
+  cat > expected.yaml <<'EOF'
+  name: my-rock
+  base: ubuntu@24.04
+  version: '1.0'
+  summary: A summary that is far too long for a single line of eighty characters
+    here
+  description: A rock for testing craft-tidy.
+  platforms:
+    amd64:
+  parts:
+    my-rock:
+      plugin: nil
+      stage-packages: [ca-certificates, python3]
+  EOF
+  diff -u expected.yaml rockcraft.yaml
+  craft-tidy --fix > out.txt 2> err.txt
+  test ! -s out.txt
+  test ! -s err.txt
+  diff -u expected.yaml rockcraft.yaml
+
+  # Next to a Snapcraft project, both files are linted, in alphabetical
+  # order of the tools.
+  mkdir snap
+  printf 'name: snap\nplugs: [b, a]\n' > snap/snapcraft.yaml
+  cp original.yaml rockcraft.yaml
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 2
+  head -n1 out.txt | MATCH "^\./rockcraft.yaml:11:"
+  tail -n1 out.txt | MATCH "^\./snap/snapcraft.yaml:2:"

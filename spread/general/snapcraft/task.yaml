@@ -1,6 +1,24 @@
-summary: Lint Snapcraft projects in home directories
+summary: Lint snapcraft projects
 
 execute: |
+  # Project files are looked for in Snapcraft's order, and only the first
+  # one found is linted.
+  mkdir -p "$WORK/order/snap" "$WORK/order/build-aux/snap"
+  cd "$WORK/order"
+  printf 'name: test\n' > .snapcraft.yaml
+  craft-tidy | MATCH "^\./\.snapcraft\.yaml: warning: .*\[project-file-location\]"
+  printf 'name: test\nplugs: [b, a]\n' > build-aux/snap/snapcraft.yaml
+  craft-tidy > out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  # build-aux/snap/ is an accepted location.
+  MATCH "^\./build-aux/snap/snapcraft.yaml:2:.*\[style-sorted-lists\]" < out.txt
+  printf 'name: test\n' > snap/snapcraft.yaml
+  craft-tidy > out.txt
+  test ! -s out.txt
+  printf 'name: test\n' > snapcraft.yaml
+  craft-tidy | MATCH "^\./snapcraft.yaml: warning: .*\[project-file-location\]"
+  cd -
+
   # A clean project passes.
   mkdir -p "$WORK/clean/snap"
   cat > "$WORK/clean/snap/snapcraft.yaml" <<'EOF'

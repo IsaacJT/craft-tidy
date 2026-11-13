@@ -1,0 +1,80 @@
+summary: Lint debcraft projects
+
+execute: |
+  cd "$WORK"
+
+  # Only debcraft.yaml in the project root is read, like debcraft does.
+  mkdir -p deb build-aux
+  cat > deb/debcraft.yaml <<'EOF'
+  name: my-package
+  base: ubuntu@24.04
+  version: '1.0'
+  summary: A package for testing craft-tidy
+  description: A package for testing craft-tidy.
+  platforms:
+    amd64:
+  parts:
+    my-package:
+      plugin: nil
+      build-packages: [make, gcc]
+  EOF
+  cp deb/debcraft.yaml original.yaml
+  cp deb/debcraft.yaml .debcraft.yaml
+  cp deb/debcraft.yaml build-aux/debcraft.yaml
+  set +e
+  craft-tidy 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "no craft project file found" < err.txt
+
+  # Problems are reported with locations. project-file-location only
+  # applies to Snapcraft, so a debcraft.yaml in the root is fine.
+  mv deb/debcraft.yaml debcraft.yaml
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "^\./debcraft.yaml:11:[0-9]+: warning: .*\[style-sorted-lists\]" < out.txt
+  NOMATCH "project-file-location" < out.txt
+
+  # The file can also be given explicitly.
+  craft-tidy "$WORK/debcraft.yaml" | MATCH "debcraft.yaml:11:.*\[style-sorted-lists\]"
+
+  # Long lines are found too.
+  sed -i 's/^summary: .*/summary: A summary that is far too long for a single line of eighty characters here/' debcraft.yaml
+  craft-tidy | MATCH "debcraft.yaml:4:81: warning: .*\[style-line-length\]"
+
+  # --fix wraps and sorts without changing the data, and is idempotent.
+  craft-tidy --fix > out.txt 2> err.txt
+  MATCH "applied fixes to .*debcraft.yaml" < err.txt
+  test ! -s out.txt
+  cat > expected.yaml <<'EOF'
+  name: my-package
+  base: ubuntu@24.04
+  version: '1.0'
+  summary: A summary that is far too long for a single line of eighty characters
+    here
+  description: A package for testing craft-tidy.
+  platforms:
+    amd64:
+  parts:
+    my-package:
+      plugin: nil
+      build-packages: [gcc, make]
+  EOF
+  diff -u expected.yaml debcraft.yaml
+  craft-tidy --fix > out.txt 2> err.txt
+  test ! -s out.txt
+  test ! -s err.txt
+  diff -u expected.yaml debcraft.yaml
+
+  # Next to a Snapcraft project, both files are linted, in alphabetical
+  # order of the tools.
+  mkdir snap
+  printf 'name: snap\nplugs: [b, a]\n' > snap/snapcraft.yaml
+  cp original.yaml debcraft.yaml
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 2
+  head -n1 out.txt | MATCH "^\./debcraft.yaml:11:"
+  tail -n1 out.txt | MATCH "^\./snap/snapcraft.yaml:2:"

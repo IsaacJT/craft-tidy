@@ -1,0 +1,80 @@
+summary: Lint imagecraft projects
+
+execute: |
+  cd "$WORK"
+
+  # Only imagecraft.yaml in the project root is read, like imagecraft does.
+  mkdir -p image build-aux
+  cat > image/imagecraft.yaml <<'EOF'
+  name: my-image
+  base: ubuntu@24.04
+  version: '1.0'
+  summary: An image for testing craft-tidy
+  description: An image for testing craft-tidy.
+  platforms:
+    amd64:
+  parts:
+    rootfs:
+      plugin: nil
+      stage-packages: [systemd, linux-generic]
+  EOF
+  cp image/imagecraft.yaml original.yaml
+  cp image/imagecraft.yaml .imagecraft.yaml
+  cp image/imagecraft.yaml build-aux/imagecraft.yaml
+  set +e
+  craft-tidy 2> err.txt
+  status=$?
+  set -e
+  test "$status" -eq 2
+  MATCH "no craft project file found" < err.txt
+
+  # Problems are reported with locations. project-file-location only
+  # applies to Snapcraft, so a imagecraft.yaml in the root is fine.
+  mv image/imagecraft.yaml imagecraft.yaml
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 1
+  MATCH "^\./imagecraft.yaml:11:[0-9]+: warning: .*\[style-sorted-lists\]" < out.txt
+  NOMATCH "project-file-location" < out.txt
+
+  # The file can also be given explicitly.
+  craft-tidy "$WORK/imagecraft.yaml" | MATCH "imagecraft.yaml:11:.*\[style-sorted-lists\]"
+
+  # Long lines are found too.
+  sed -i 's/^summary: .*/summary: A summary that is far too long for a single line of eighty characters here/' imagecraft.yaml
+  craft-tidy | MATCH "imagecraft.yaml:4:81: warning: .*\[style-line-length\]"
+
+  # --fix wraps and sorts without changing the data, and is idempotent.
+  craft-tidy --fix > out.txt 2> err.txt
+  MATCH "applied fixes to .*imagecraft.yaml" < err.txt
+  test ! -s out.txt
+  cat > expected.yaml <<'EOF'
+  name: my-image
+  base: ubuntu@24.04
+  version: '1.0'
+  summary: A summary that is far too long for a single line of eighty characters
+    here
+  description: An image for testing craft-tidy.
+  platforms:
+    amd64:
+  parts:
+    rootfs:
+      plugin: nil
+      stage-packages: [linux-generic, systemd]
+  EOF
+  diff -u expected.yaml imagecraft.yaml
+  craft-tidy --fix > out.txt 2> err.txt
+  test ! -s out.txt
+  test ! -s err.txt
+  diff -u expected.yaml imagecraft.yaml
+
+  # Next to a Snapcraft project, both files are linted, in alphabetical
+  # order of the tools.
+  mkdir snap
+  printf 'name: snap\nplugs: [b, a]\n' > snap/snapcraft.yaml
+  cp original.yaml imagecraft.yaml
+  craft-tidy > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 2
+  head -n1 out.txt | MATCH "^\./imagecraft.yaml:11:"
+  tail -n1 out.txt | MATCH "^\./snap/snapcraft.yaml:2:"

@@ -34,8 +34,11 @@ sudo snap install --dangerous ./craft-tidy_*.snap
 
 The [spread](https://github.com/canonical/spread) suite in `spread/general/`
 installs the built snap in a fresh Ubuntu VM and runs it end to end, under
-strict confinement: informational options, linting Snapcraft and other
-craft projects, `--fix`, configuration files and error handling. Run it from
+strict confinement. There is one task per craft tool (`charmcraft`,
+`debcraft`, `imagecraft`, `rockcraft`, `snapcraft`: where the project file
+is looked for, findings, `--fix`, and which checks apply), plus tasks for
+informational options (`cli`), `--fix` (`fix`), configuration files
+(`config`) and error handling (`errors`). Run it from
 the repository root (it needs LXD, as `snapcraft pack` does):
 
 ```sh
@@ -49,8 +52,9 @@ cloud-init before using apt. Each task is a `task.yaml` in its own
 directory under `spread/general/`. Tasks create their projects in `$WORK`
 (`/root/work`, emptied before and after each task), since the snap can only
 reach non-hidden files in home directories, and check output with spread's
-`MATCH`/`NOMATCH`. Add a task when you add user-visible behaviour, such as
-a new check.
+`MATCH`/`NOMATCH`. Keep the tasks up to date with every user-visible
+change: a new check needs assertions in the task of each tool it applies
+to, and support for a new craft tool needs a task of its own.
 
 ### Checking every commit
 
