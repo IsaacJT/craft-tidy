@@ -162,6 +162,11 @@ checks. Globs are evaluated in order and the last one matching a check
 decides whether it is enabled. For example, `-*,style-*,-style-sorted-lists`
 enables all `style-*` checks except `style-sorted-lists`.
 
+Selection starts from the default `*` (all checks), and globs are added to
+it, so a positive glob on its own changes nothing: `--checks=style-*` still
+runs every check. To run only some checks, start with `-*`, as in
+`--checks='-*,style-*'`.
+
 ### Precedence
 
 Settings are combined from these sources, each overriding the previous ones:

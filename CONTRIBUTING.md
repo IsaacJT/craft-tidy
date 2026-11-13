@@ -169,9 +169,8 @@ Guidelines:
    checks the fixed output as well as problems that must not be fixed.
 8. Document the check, the tools it applies to and its options in
    `README.md` (check table and a section of its own), show its options in
-   `examples/.craft-tidy`, and add its module to the layout list in
-   `AGENTS.md` (and its test file to the tables in `CONTRIBUTING.md` and
-   `AGENTS.md`).
+   `examples/.craft-tidy`, and in `AGENTS.md` add its module to the layout
+   list and its name to the "Implemented checks" list in the overview.
 9. Add assertions for the check to the spread task of every craft tool it
    applies to (`spread/general/<tool>/task.yaml`), and make sure the tasks
    of the other tools do not expect it; for fixes, extend the `fix` task.
@@ -201,7 +200,8 @@ Settings must be available both in `.craft-tidy` and on the command line:
    configuration section) and update the configuration model in
    `AGENTS.md`.
 7. Add assertions for the flag and the `.craft-tidy` key to the `cli` and
-   `config` spread tasks.
+   `config` spread tasks, invalid values to `errors`, and anything
+   affecting `--fix` to `fix`.
 8. Run the cargo checks, `snapcraft pack` and `snapcraft test` before
    committing.
 
@@ -221,8 +221,8 @@ request, and on demand (`workflow_dispatch`):
 
 | Job               | What it does                                                                 |
 | ----------------- | ---------------------------------------------------------------------------- |
-| Format and lint   | `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`          |
-| Test              | `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
+| Format and lint   | `ubuntu-latest`: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`          |
+| Test              | `ubuntu-latest`: `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
 | Build and test the snap | [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test` on an `ubuntu-24.04` runner; the snap is uploaded as the `craft-tidy-snap` artifact |
 
 When raising `rust-version`, update the matrix in the workflow too.
@@ -233,7 +233,10 @@ When raising `rust-version`, update the matrix in the workflow too.
 2. Keep each change focused; unrelated changes belong in separate pull
    requests.
 3. Make sure the code is formatted, passes `clippy` without warnings, and
-   that all tests pass.
+   that all tests pass; the snap must build and, for user-visible changes,
+   pass `snapcraft test` too (see step 6). If you cannot run `snapcraft
+   pack` or `snapcraft test` (they need LXD or Multipass), say so in the
+   pull request; CI runs both.
 4. Add positive and negative tests in `craft-tidy/tests/` for new features
    and bug fixes.
 5. Update the documentation (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`)
