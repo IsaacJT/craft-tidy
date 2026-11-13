@@ -1,0 +1,8 @@
+[package]
+name = "craft-tidy"
+version = "0.1.0"
+edition = "2024"
+description = "A linter for Snapcraft projects"
+license = "GPL-3.0-only"
+
+[dependencies]

@@ -1,0 +1,24 @@
+name: craft-tidy
+base: core26
+version: '0.1.0'
+summary: A linter for Snapcraft projects
+description: |
+  craft-tidy checks snapcraft.yaml files for common mistakes, deprecated
+  constructs and deviations from packaging best practices, helping you
+  catch problems before you run a (potentially lengthy) snap build.
+license: GPL-3.0-only
+
+grade: devel
+confinement: strict
+
+apps:
+  craft-tidy:
+    command: bin/craft-tidy
+    plugs:
+      - home
+
+parts:
+  craft-tidy:
+    plugin: rust
+    source: craft-tidy
+    rust-channel: stable
