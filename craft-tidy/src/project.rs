@@ -9,12 +9,12 @@ use crate::error::Error;
 use crate::yaml::Document;
 
 /// Locations of the project file relative to the project directory, in the
-/// order Snapcraft searches them.
+/// order Snapcraft searches them; the first one found is used.
 pub const PROJECT_FILE_LOCATIONS: &[&str] = &[
-    "snap/snapcraft.yaml",
     "snapcraft.yaml",
-    ".snapcraft.yaml",
+    "snap/snapcraft.yaml",
     "build-aux/snap/snapcraft.yaml",
+    ".snapcraft.yaml",
 ];
 
 /// A Snapcraft project file to be linted.

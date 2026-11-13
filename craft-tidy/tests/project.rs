@@ -40,6 +40,29 @@ fn prefers_locations_in_snapcraft_search_order() {
 }
 
 #[test]
+fn uses_the_same_project_file_as_snapcraft() {
+    // Snapcraft prefers snapcraft.yaml in the root over snap/snapcraft.yaml,
+    // and .snapcraft.yaml comes last.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), ".snapcraft.yaml", "");
+    write(dir.path(), "build-aux/snap/snapcraft.yaml", "");
+    assert_eq!(
+        project::find(dir.path()).unwrap(),
+        dir.path().join("build-aux/snap/snapcraft.yaml")
+    );
+    write(dir.path(), "snap/snapcraft.yaml", "");
+    assert_eq!(
+        project::find(dir.path()).unwrap(),
+        dir.path().join("snap/snapcraft.yaml")
+    );
+    write(dir.path(), "snapcraft.yaml", "");
+    assert_eq!(
+        project::find(dir.path()).unwrap(),
+        dir.path().join("snapcraft.yaml")
+    );
+}
+
+#[test]
 fn accepts_a_project_file_path() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "custom.yaml", "name: test\n");

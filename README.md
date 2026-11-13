@@ -34,8 +34,9 @@ craft-tidy [OPTIONS] [PATH]
 
 `PATH` is a project directory (default: the current directory) or the path
 of a `snapcraft.yaml` file. In a directory, the project file is searched for
-in the same locations as Snapcraft uses: `snap/snapcraft.yaml`,
-`snapcraft.yaml`, `.snapcraft.yaml` and `build-aux/snap/snapcraft.yaml`.
+in the same locations and order as Snapcraft does, so that craft-tidy checks
+the file Snapcraft would build: `snapcraft.yaml`, `snap/snapcraft.yaml`,
+`build-aux/snap/snapcraft.yaml` and `.snapcraft.yaml`.
 
 Findings are printed one per line as
 `path:line:column: severity: message [check-name]`.
