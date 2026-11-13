@@ -30,6 +30,11 @@ jobs:
         run: cargo +stable fmt --check
       - name: Run clippy
         run: cargo +stable clippy --all-targets -- -D warnings
+      - name: Check that the generated spread tasks are up to date
+        working-directory: .
+        run: |
+          python3 spread/generate-tool-tasks.py
+          git diff --exit-code spread/general/
 
   test:
     name: Test (Rust ${{ matrix.rust }})

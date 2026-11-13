@@ -3,8 +3,7 @@ summary: Run the language server
 execute: |
   mkdir -p "$WORK/project/snap"
   cd "$WORK/project"
-  printf 'name: test\nplugs: [b, a]\n' > snap/snapcraft.yaml
-  printf 'checks: -style-collapsed-sequences,-metadata-license\n' > .craft-tidy
+  printf 'name: test\nlicense: MIT\nplugs:\n  - b\n  - a\n' > snap/snapcraft.yaml
 
   # A minimal LSP client: initialise the server, open the project file,
   # print the diagnostics published for it, then shut the server down.
@@ -65,16 +64,16 @@ execute: |
   EOF
 
   python3 client.py "$WORK/project/snap/snapcraft.yaml" > out.txt
-  cat out.txt
-  # The .craft-tidy next to the project disables style-collapsed-sequences.
-  test "$(wc -l < out.txt)" -eq 5
-  MATCH "^1 8 style-sorted-lists entries of 'plugs' are not sorted: 'a' should come before 'b'$" < out.txt
-  # Quick fixes, suppression and fixing the whole file.
-  grep -Fx 'action: quickfix Fix: entries of '"'plugs'"' are not sorted: '"'a'"' should come before '"'b'"' -> "a, b"' out.txt
-  grep -Fx 'action: quickfix Suppress style-sorted-lists on this line with NOLINTNEXTLINE -> "# NOLINTNEXTLINE(style-sorted-lists)\n"' out.txt
-  grep -Fx 'action: source.fixAll Fix all craft-tidy problems -> "a, b"' out.txt
-  # Hovering explains the check.
-  grep -Fx 'hover: style-sorted-lists: Entries of unordered lists must be sorted alphabetically' out.txt
+  # The finding (with its 0-based position), its code actions with the
+  # text they insert, and the hover text of its check.
+  cat > expected.txt <<'EOF'
+  3 4 style-sorted-lists entries of 'plugs' are not sorted: 'a' should come before 'b'
+  action: quickfix Fix: entries of 'plugs' are not sorted: 'a' should come before 'b' -> "a\n  - b"
+  action: quickfix Suppress style-sorted-lists on this line with NOLINTNEXTLINE -> "# NOLINTNEXTLINE(style-sorted-lists)\n  "
+  action: source.fixAll Fix all craft-tidy problems -> "a\n  - b"
+  hover: style-sorted-lists: Entries of unordered lists must be sorted alphabetically
+  EOF
+  diff -u expected.txt out.txt
 
   # Without an editor, the server fails.
   set +e

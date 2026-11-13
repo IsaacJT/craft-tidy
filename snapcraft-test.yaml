@@ -14,22 +14,16 @@ suites:
     environment:
       # Projects are created in root's home directory, which the strictly
       # confined snap can reach through the home interface.
-      WORK: /root/work/task
+      WORK: /root/work
     prepare: |
       snap install "$CRAFT_ARTIFACT" --dangerous
     restore: |
       snap remove craft-tidy --purge
     prepare-each: |
-      rm -rf /root/work
+      rm -rf "$WORK"
       mkdir -p "$WORK"
-      # Most test projects have no license, which is only what the tasks
-      # testing metadata-license are about; they enable it with
-      # --checks='-*,metadata-license'. A .craft-tidy of a task takes
-      # precedence over this one, so it must disable it too. (This is not
-      # in /root itself, as the snap cannot read hidden files there.)
-      echo 'checks: -metadata-license' > /root/work/.craft-tidy
     restore-each: |
-      rm -rf /root/work
+      rm -rf "$WORK"
 
 exclude:
   - .git

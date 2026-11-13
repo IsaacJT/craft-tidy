@@ -190,10 +190,14 @@ check framework and `--fix` exist. Implemented checks:
   one task per craft tool (`charmcraft`, `debcraft`, `imagecraft`,
   `rockcraft`, `snapcraft`) plus `cli`, `config`, `errors`, `fix`, `nolint`,
   `lsp` (a Python LSP client embedded in the task);
-  projects go in `$WORK` (`/root/work/task`); `prepare-each` writes
-  `/root/work/.craft-tidy` disabling `metadata-license` (most fixtures
-  have no license; a task's own `.craft-tidy` must disable it too, and
-  license tasks use `--checks='-*,metadata-license'`); `spread/.extension` is Snapcraft's
+  projects go in `$WORK` (`/root/work`). The five tool tasks are generated
+  by `spread/generate-tool-tasks.py` (edit it, not them; CI checks they are
+  up to date): each uses a realistic, conforming project for its tool
+  (with `license`, except Charmcraft) and runs all checks, each section
+  changing one thing and comparing the exact output (lines and columns
+  computed from the fixtures) with `diff`. Do not use `.craft-tidy` files
+  to silence checks in spread tasks: make fixtures conform instead (only
+  the `config` task uses `.craft-tidy`, as it tests it); `spread/.extension` is Snapcraft's
   template plus a cloud-init wait
 - `README.md` - user-facing introduction, usage and configuration reference
 - `CONTRIBUTING.md` - contributor workflow, code structure, how to add checks
@@ -352,9 +356,12 @@ and why, so that a human can run them before the commits are pushed.
 
 Keep the spread tasks in `spread/general/` up to date as the tool
 develops, in the same commit as the change: a new or changed check gets
-assertions in the task of every craft tool it applies to (and none where
-it does not apply), a new craft tool gets its own task, and new options,
-settings or exit behaviour go in `cli`, `config`, `errors` or `fix`.
+a section in the tool tasks via `spread/generate-tool-tasks.py` (reported
+for every craft tool it applies to, and shown not to be reported for the
+others), a new craft tool gets a conforming project there, and new
+options, settings or exit behaviour go in `cli`, `config`, `errors` or
+`fix`. A new check may make existing fixtures non-conforming: fix the
+fixtures, never silence the check.
 
 ## Committing
 

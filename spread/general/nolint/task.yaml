@@ -5,6 +5,7 @@ execute: |
   cd "$WORK/project"
   cat > snap/snapcraft.yaml <<'EOF'
   name: nolint
+  license: GPL-3.0-only
   # NOLINTNEXTLINE(style-line-length): the summary is quoted from upstream
   summary: This summary is far too long to fit on a single line of eighty characters
   description: This description is far too long to fit on one line of eighty characters
@@ -20,14 +21,15 @@ execute: |
   craft-tidy > out.txt || true
   cat out.txt
   test "$(wc -l < out.txt)" -eq 2
-  MATCH "snapcraft.yaml:4:81: warning: line is 85 characters long, exceeding the limit of 80 \[style-line-length\]" < out.txt
-  MATCH "snapcraft.yaml:12:3: warning: NOLINTEND has no matching NOLINTBEGIN before it \[craft-tidy-nolint\]" < out.txt
+  MATCH "snapcraft.yaml:5:81: warning: line is 85 characters long, exceeding the limit of 80 \[style-line-length\]" < out.txt
+  MATCH "snapcraft.yaml:13:3: warning: NOLINTEND has no matching NOLINTBEGIN before it \[craft-tidy-nolint\]" < out.txt
 
   # --fix leaves suppressed lines alone.
   craft-tidy --fix > out.txt 2> err.txt
   MATCH "applied fixes to .*snapcraft.yaml \(2 issue\(s\) found, 1 remaining\)" < err.txt
   cat > expected.yaml <<'EOF'
   name: nolint
+  license: GPL-3.0-only
   # NOLINTNEXTLINE(style-line-length): the summary is quoted from upstream
   summary: This summary is far too long to fit on a single line of eighty characters
   description: This description is far too long to fit on one line of eighty
@@ -42,7 +44,7 @@ execute: |
   # NOLINTEND
   EOF
   diff -u expected.yaml snap/snapcraft.yaml
-  MATCH "snapcraft.yaml:13:3: .*\[craft-tidy-nolint\]" < out.txt
+  MATCH "snapcraft.yaml:14:3: .*\[craft-tidy-nolint\]" < out.txt
 
   # Mistakes in NOLINT comments can be made errors like any finding.
   set +e
@@ -50,4 +52,4 @@ execute: |
   status=$?
   set -e
   test "$status" -eq 1
-  MATCH "13:3: error: NOLINTEND has no matching NOLINTBEGIN" < out.txt
+  MATCH "14:3: error: NOLINTEND has no matching NOLINTBEGIN" < out.txt
