@@ -94,7 +94,7 @@ impl Context<'_> {
         &self,
         check: &str,
         edits: Vec<(Edit, T)>,
-        accept: impl FnMut(&Document, &Document, &T) -> bool,
+        accept: impl FnMut(&Document, &Document, &[&T]) -> bool,
     ) -> Option<Document> {
         let document = &self.project.document;
         let edits = edits

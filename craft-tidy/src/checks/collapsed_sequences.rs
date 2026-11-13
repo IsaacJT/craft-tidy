@@ -7,7 +7,7 @@ use std::ops::Range;
 
 use crate::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use crate::config::OptionValue;
-use crate::fix::{Edit, apply_edits};
+use crate::fix::{Edit, kept_edits};
 use crate::yaml::{CollectionStyle, Document, Node, NodeKind, ScalarStyle};
 
 const NAME: &str = "style-collapsed-sequences";
@@ -150,13 +150,19 @@ fn changes(ctx: &Context<'_>) -> Vec<Change> {
     };
     let mut changes = Vec::new();
     planner.visit(root, &mut changes);
-    changes.retain(|change| {
-        apply_edits(
-            document,
-            vec![(change.edit.clone(), ())],
-            |before, after, _| before.value() == after.value(),
-        )
-        .is_some()
+    let edits = changes
+        .iter()
+        .map(|change| (change.edit.clone(), ()))
+        .collect();
+    let (_, kept) = kept_edits(document, edits, |before, after, _| {
+        before.value() == after.value()
+    });
+    let mut kept = kept.into_iter().peekable();
+    let mut index = 0;
+    changes.retain(|_| {
+        let keep = kept.next_if_eq(&index).is_some();
+        index += 1;
+        keep
     });
     changes
 }

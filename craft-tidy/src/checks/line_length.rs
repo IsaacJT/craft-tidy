@@ -8,7 +8,7 @@ use std::ops::Range;
 
 use crate::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use crate::config::OptionValue;
-use crate::fix::{Edit, apply_edits};
+use crate::fix::{Edit, kept_edits};
 use crate::nolint;
 use crate::yaml::{CollectionStyle, Document, Node, NodeKind, ScalarStyle};
 
@@ -74,6 +74,12 @@ impl Check for LineLength {
         let wrapper = Wrapper::new(document, max);
         let edits = wrapper.edits();
         let skipped = wrapper.skipped.into_inner();
+        // Which wraps the fix would keep, verified together.
+        let (_, kept) = kept_edits(
+            document,
+            edits.iter().map(|edit| (edit.clone(), ())).collect(),
+            |before, after, _| before.value() == after.value(),
+        );
         // Lines the fix leaves alone are reported with the reason, which is
         // shown for the findings that remain after fixing.
         (0..document.line_count())
@@ -85,12 +91,12 @@ impl Check for LineLength {
                 // The fix leaves this line alone (and says why), or its edit
                 // was rejected, as it would have changed the data.
                 let range = document.line_range(index);
-                let edit = edits
-                    .iter()
-                    .find(|edit| edit.range.start <= range.end && range.start <= edit.range.end);
+                let edit = edits.iter().position(|edit| {
+                    edit.range.start <= range.end && range.start <= edit.range.end
+                });
                 let reason = match (skipped.get(&index), edit) {
                     (Some(reason), _) => Some(reason.clone()),
-                    (None, Some(edit)) => (!wraps_safely(document, edit))
+                    (None, Some(edit)) => (kept.binary_search(&edit).is_err())
                         .then(|| "wrapping it would change the data".to_owned()),
                     (None, None) => Some("it cannot be wrapped automatically".to_owned()),
                 };
@@ -115,14 +121,6 @@ impl Check for LineLength {
             before.value() == after.value()
         })
     }
-}
-
-/// Whether `edit` would be accepted by the fix.
-fn wraps_safely(document: &Document, edit: &Edit) -> bool {
-    apply_edits(document, vec![(edit.clone(), ())], |before, after, _| {
-        before.value() == after.value()
-    })
-    .is_some()
 }
 
 fn max_length(ctx: &Context<'_>) -> usize {

@@ -4,7 +4,7 @@
 
 use std::cell::RefCell;
 
-use craft_tidy::fix::{Edit, apply_edits};
+use craft_tidy::fix::{Edit, apply_edits, kept_edits};
 use craft_tidy::yaml::Document;
 
 fn doc(source: &str) -> Document {
@@ -15,7 +15,7 @@ fn edit(range: std::ops::Range<usize>, replacement: &str) -> (Edit, ()) {
     (Edit::new(range, replacement), ())
 }
 
-fn accept_all(_: &Document, _: &Document, _: &()) -> bool {
+fn accept_all(_: &Document, _: &Document, _: &[&()]) -> bool {
     true
 }
 
@@ -50,27 +50,96 @@ fn rejected_edits_are_skipped_but_others_kept() {
         (Edit::new(11..15, "gone"), false),
         (Edit::new(19..23, "kept"), true),
     ];
-    let fixed = apply_edits(&doc(source), edits, |_, _, ok| *ok).unwrap();
+    let fixed = apply_edits(&doc(source), edits, |_, _, oks| oks.iter().all(|ok| **ok)).unwrap();
     assert_eq!(fixed.source(), "a: kept\nb: drop\nc: kept\n");
 }
 
 #[test]
-fn accept_sees_previously_kept_edits() {
-    let source = "a: 1\nb: 2\n";
+fn reports_which_edits_were_kept() {
+    let source = "a: 1\nb: 2\nc: 3\nd: 4\n";
+    let edits = vec![
+        (Edit::new(3..4, "x"), true),
+        (Edit::new(8..9, "[bad"), true),
+        (Edit::new(13..14, "z"), false),
+        (Edit::new(18..19, "w"), true),
+    ];
+    let (fixed, kept) = kept_edits(&doc(source), edits, |_, _, oks| oks.iter().all(|ok| **ok));
+    assert_eq!(kept, [0, 3]);
+    assert_eq!(fixed.unwrap().source(), "a: x\nb: 2\nc: 3\nd: w\n");
+    let (fixed, kept) = kept_edits(&doc(source), vec![edit(3..4, "[")], accept_all);
+    assert!(fixed.is_none());
+    assert!(kept.is_empty());
+}
+
+#[test]
+fn edits_are_verified_together() {
+    // Edits that do not overlap are verified as one batch: the document is
+    // parsed once, not once per edit.
+    let source = "a: 1\nb: 2\nc: 3\n";
     let seen = RefCell::new(Vec::new());
-    let edits = vec![edit(3..4, "x"), edit(8..9, "y")];
-    apply_edits(&doc(source), edits, |before, after, _| {
-        seen.borrow_mut()
-            .push((before.source().to_owned(), after.source().to_owned()));
+    let edits = vec![
+        (Edit::new(3..4, "x"), 'a'),
+        (Edit::new(8..9, "y"), 'b'),
+        (Edit::new(13..14, "z"), 'c'),
+    ];
+    apply_edits(&doc(source), edits, |before, after, data| {
+        seen.borrow_mut().push((
+            before.source().to_owned(),
+            after.source().to_owned(),
+            data.iter().map(|c| **c).collect::<String>(),
+        ));
         true
     });
     assert_eq!(
         seen.into_inner(),
+        [(
+            "a: 1\nb: 2\nc: 3\n".to_owned(),
+            "a: x\nb: y\nc: z\n".to_owned(),
+            "cba".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn rejected_batches_are_split_to_find_the_edits_at_fault() {
+    let source = "a: 1\nb: 2\nc: 3\nd: 4\n";
+    let seen = RefCell::new(Vec::new());
+    let edits = vec![
+        (Edit::new(3..4, "x"), true),
+        (Edit::new(8..9, "y"), true),
+        (Edit::new(13..14, "z"), false),
+        (Edit::new(18..19, "w"), true),
+    ];
+    let fixed = apply_edits(&doc(source), edits, |before, _, oks| {
+        seen.borrow_mut()
+            .push((before.source().to_owned(), oks.len()));
+        oks.iter().all(|ok| **ok)
+    })
+    .unwrap();
+    assert_eq!(fixed.source(), "a: x\nb: y\nc: 3\nd: w\n");
+    // All four, then the halves (d and c; b and a), then c and d alone; each
+    // accepted batch is seen by the next one.
+    assert_eq!(
+        seen.into_inner(),
         [
-            ("a: 1\nb: 2\n".to_owned(), "a: 1\nb: y\n".to_owned()),
-            ("a: 1\nb: y\n".to_owned(), "a: x\nb: y\n".to_owned()),
+            ("a: 1\nb: 2\nc: 3\nd: 4\n".to_owned(), 4),
+            ("a: 1\nb: 2\nc: 3\nd: 4\n".to_owned(), 2),
+            ("a: 1\nb: 2\nc: 3\nd: 4\n".to_owned(), 1),
+            ("a: 1\nb: 2\nc: 3\nd: w\n".to_owned(), 1),
+            ("a: 1\nb: 2\nc: 3\nd: w\n".to_owned(), 2),
         ]
     );
+}
+
+#[test]
+fn edits_overlapping_a_rejected_edit_are_tried() {
+    let source = "a: abcdef\n";
+    let edits = vec![
+        (Edit::new(3..7, "XXXX"), true),
+        (Edit::new(5..9, "YYYY"), false),
+    ];
+    let fixed = apply_edits(&doc(source), edits, |_, _, oks| oks.iter().all(|ok| **ok)).unwrap();
+    assert_eq!(fixed.source(), "a: XXXXef\n");
 }
 
 #[test]
@@ -102,5 +171,7 @@ fn returns_none_when_nothing_is_kept() {
     let source = "a: 1\n";
     assert!(apply_edits(&doc(source), Vec::<(Edit, ())>::new(), accept_all).is_none());
     assert!(apply_edits(&doc(source), vec![edit(3..4, "2")], |_, _, _| false).is_none());
+    let fixed = apply_edits(&doc(source), vec![edit(3..4, "2")], accept_all);
+    assert_eq!(fixed.unwrap().source(), "a: 2\n");
     assert!(apply_edits(&doc(source), vec![edit(0..1, "[")], accept_all).is_none());
 }

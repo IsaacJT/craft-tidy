@@ -165,9 +165,14 @@ Guidelines:
    `ctx.apply_edits(NAME, …)`, which skips edits on lines where `NOLINT`
    comments suppress the check and otherwise works like
    `fix::apply_edits`, passing a verification closure that compares the
-   data before and after each edit (`Document::value()`): edits that only
-   reformat must leave it unchanged, and edits that change data must
-   produce exactly the intended result. Never rewrite the whole file.
+   data before and after (`Document::value()`): edits that only reformat
+   must leave it unchanged, and edits that change data must produce
+   exactly the intended result. Edits are verified in batches (the
+   closure gets the data of every edit in the batch), so the closure must
+   accept any combination of the check's non-overlapping edits. Never
+   rewrite the whole file, and never parse the document once per edit:
+   to find out in `run()` which edits would be kept, call
+   `fix::kept_edits` with all of them.
 6. Register the check in `checks::registry()`.
 7. Add tests in a new file `craft-tidy/tests/check_<name>.rs` covering
    projects that pass, projects that fail, each option, and for fixable

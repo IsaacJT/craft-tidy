@@ -85,9 +85,16 @@ check framework and `--fix` exist. Implemented checks:
     lists are checked too. Fix moves whole
     entry lines (with comments above, except above the first entry) and
     verifies the result equals the original `Value` with that list permuted
-  - `src/fix.rs` - `Edit` and `apply_edits()`: applies edits from the end of
-    the file backwards, skips overlapping ones, and keeps an edit only if the
-    result parses and the check's verification closure accepts it
+  - `src/fix.rs` - `Edit`, `apply_edits()` and `kept_edits()` (also returns
+    the indices of the kept edits). Edit ranges refer to the original text;
+    of overlapping edits, the one nearest the end wins (the others can be
+    proposed on the next pass). Edits are verified in batches for speed: all
+    non-overlapping edits are applied and parsed once, and the closure
+    `accept(before, after, &[&data])` gets the data of the whole batch; a
+    rejected batch is split in halves recursively, then edits that
+    overlapped a rejected one are tried. Never verify edits one by one with
+    a parse each (it made `style-collapsed-sequences` take a minute on a
+    large file); in `run()`, use `kept_edits` on all edits at once
   - `src/error.rs` - crate `Error` enum
   - `tests/` - the whole test suite (see [Testing](#testing))
 - `examples/.craft-tidy` - commented example configuration, verified by

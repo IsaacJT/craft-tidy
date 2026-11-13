@@ -97,14 +97,18 @@ impl Check for SortedLists {
             .into_iter()
             .filter_map(|list| list.edit.map(|edit| (edit, (list.path, list.order))))
             .collect();
-        ctx.apply_edits(NAME, edits, |before, after, (path, order)| {
+        // Edits of one batch never overlap, so they sort different lists,
+        // and the order of the sorts does not matter.
+        ctx.apply_edits(NAME, edits, |before, after, lists| {
             let Some(mut expected) = before.value() else {
                 return false;
             };
-            let Some(Value::Sequence(items)) = expected.get_mut(path) else {
-                return false;
-            };
-            *items = order.iter().map(|&i| items[i].clone()).collect();
+            for (path, order) in lists {
+                let Some(Value::Sequence(items)) = expected.get_mut(path) else {
+                    return false;
+                };
+                *items = order.iter().map(|&i| items[i].clone()).collect();
+            }
             after.value() == Some(expected)
         })
     }
