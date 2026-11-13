@@ -1,0 +1,11 @@
+id = "craft-tidy"
+name = "craft-tidy"
+version = "0.1.0"
+schema_version = 1
+authors = ["Isaac True <isaac.true@canonical.com>"]
+description = "Lint the project files of Canonical's craft tools (snapcraft.yaml, charmcraft.yaml, rockcraft.yaml, ...) as you edit them"
+repository = "https://github.com/IsaacJT/craft-tidy"
+
+[language_servers.craft-tidy]
+name = "craft-tidy"
+languages = ["YAML"]

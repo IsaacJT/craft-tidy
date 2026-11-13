@@ -81,6 +81,23 @@ jobs:
           path: editors/vscode/*.vsix
           if-no-files-found: error
 
+  zed:
+    name: Build the Zed extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/zed
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy --target wasm32-wasip2
+      - name: Check formatting
+        run: cargo +stable fmt --check
+      - name: Run clippy
+        run: cargo +stable clippy --target wasm32-wasip2 -- -D warnings
+      - name: Build
+        run: cargo +stable build --release --target wasm32-wasip2
+
   snap:
     name: Build and test the snap (${{ matrix.arch }})
     strategy:

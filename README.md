@@ -219,6 +219,14 @@ settings:
 }
 ```
 
+### Zed
+
+The extension in [`editors/zed/`](editors/zed/) starts the server for YAML
+files (it only reports findings in project files), alongside Zed's YAML
+language server. Until it is published, install it with **zed: install dev
+extension** from that directory. To use another executable, set
+`lsp.craft-tidy.binary.path` in your settings.
+
 ### Neovim (0.11 or later)
 
 ```lua
@@ -605,6 +613,7 @@ comments between its entries is reported but not reordered.
 | `snap/snapcraft.yaml`  | Snap packaging for craft-tidy itself     |
 | `craft-tidy/src/lsp.rs` | The language server (`craft-tidy lsp`) |
 | `editors/vscode/`      | VS Code extension running the language server |
+| `editors/zed/`         | Zed extension running the language server |
 | `snap/gui/`            | Snap icon (Noto Emoji star, Apache-2.0) and its license |
 | `snapcraft-test.yaml`, `spread/` | Spread tests of the snap, run with `snapcraft test` |
 | `.github/workflows/`   | CI: cargo checks and tests, snap build and spread tests |

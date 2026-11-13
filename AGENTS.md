@@ -171,6 +171,12 @@ check framework and `--fix` exist. Implemented checks:
   lists the project file names (keep in sync with `Craft`), its `version`
   follows craft-tidy's; `icon.png` is rendered from the Noto SVG (ships
   `LICENSE.noto-emoji`)
+- `editors/zed/` - Zed extension: separate Rust crate (`cdylib`,
+  `zed_extension_api`, target `wasm32-wasip2`, `Cargo.lock` committed,
+  `target/` and `extension.wasm` ignored) whose `language_server_command`
+  runs `craft-tidy lsp` from `PATH` or `lsp.craft-tidy.binary`; registered
+  for Zed's `YAML` language in `extension.toml`. Its `version` (both
+  files) follows craft-tidy's
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
@@ -183,7 +189,8 @@ check framework and `--fix` exist. Implemented checks:
   `needs` all others, environment `snap-store`, secret
   `SNAPCRAFT_STORE_CREDENTIALS`) releases both snaps to `edge` with
   `snapcore/action-publish@v1`. A `vscode` job packages the extension
-  (`npm ci`, `npm run package`) and uploads the `.vsix`. The architectures CI builds are decided by
+  (`npm ci`, `npm run package`) and uploads the `.vsix`; a `zed` job
+  runs fmt, clippy and a `wasm32-wasip2` build of `editors/zed/`. The architectures CI builds are decided by
   the runners alone; keep the snap and publish matrices in sync
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
@@ -400,7 +407,8 @@ fixtures, never silence the check.
 - Add positive and negative tests in `craft-tidy/tests/` for any new check,
   setting or bug fix.
 - Keep `version` in `craft-tidy/Cargo.toml`, `snap/snapcraft.yaml` and
-  `editors/vscode/package.json` in sync,
+  `editors/vscode/package.json`, `editors/zed/extension.toml` and
+  `editors/zed/Cargo.toml` in sync,
   and the author and upstream metadata too: `authors`, `repository` and
   `homepage` in `Cargo.toml`, and `contact`, `issues`, `source-code` and
   `website` in `snapcraft.yaml` (upstream: https://github.com/IsaacJT/craft-tidy).

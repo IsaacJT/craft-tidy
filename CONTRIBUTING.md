@@ -257,6 +257,16 @@ Apache-2.0), whose license it ships as `LICENSE.noto-emoji`. Keep its list
 of project file names in `extension.js` and `package.json` in sync with
 `Craft::project_file_locations()`, and its `version` with craft-tidy's.
 
+## The Zed extension
+
+`editors/zed/` is a Rust crate compiled to WebAssembly with
+`zed_extension_api`; it only tells Zed to start `craft-tidy lsp` (from
+`PATH`, or `lsp.craft-tidy.binary` in the settings) for YAML files. It is a
+separate crate, not part of `craft-tidy/`. Build it with `cargo build
+--release --target wasm32-wasip2` there (`rustup target add
+wasm32-wasip2`), and try it with **zed: install dev extension**. Keep the
+`version` in `extension.toml` and `Cargo.toml` in sync with craft-tidy's.
+
 ## Continuous integration
 
 `.github/workflows/ci.yaml` runs on every push to `main`, every pull
@@ -268,6 +278,7 @@ request, and on demand (`workflow_dispatch`):
 | Test              | `ubuntu-latest`: `cargo test` on stable Rust and on the `rust-version` from `Cargo.toml` (with PyYAML installed, so fixes are cross-checked) |
 | Build and test the snap | For amd64 (`ubuntu-24.04` runner) and arm64 (`ubuntu-24.04-arm` runner), each built natively: [`canonical/craft-actions/snapcraft/pack`](https://github.com/canonical/craft-actions/tree/main/snapcraft/pack) packs the snap and runs `snapcraft test`; the snaps are uploaded as the `craft-tidy-snap-amd64` and `craft-tidy-snap-arm64` artifacts |
 | Package the VS Code extension | `npm ci` and `npm run package` in `editors/vscode/`; the `.vsix` is uploaded as the `craft-tidy-vscode` artifact |
+| Build the Zed extension | `cargo fmt --check`, `cargo clippy` and `cargo build` for `wasm32-wasip2` in `editors/zed/` |
 | Publish to edge   | Pushes to `main` only, after all other jobs pass: [`snapcore/action-publish`](https://github.com/snapcore/action-publish) uploads both snaps to the Snap Store and releases them to `edge` |
 
 When raising `rust-version`, update the matrix in the workflow too. When
