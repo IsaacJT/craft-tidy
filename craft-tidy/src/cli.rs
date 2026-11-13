@@ -27,11 +27,13 @@ the effective configuration.";
 #[command(
     name = "craft-tidy",
     version,
-    about = "A linter for Snapcraft projects",
+    about = "A linter for the project files of Canonical's craft tools \
+             (Snapcraft, Charmcraft, Rockcraft, Imagecraft and Debcraft)",
     after_long_help = AFTER_HELP
 )]
 pub struct Cli {
-    /// Project directory or snapcraft.yaml file to lint.
+    /// Project directory, or project file such as snapcraft.yaml, to lint.
+    /// In a directory, the project file of every craft tool found is linted.
     #[arg(value_name = "PATH", default_value = ".")]
     pub path: PathBuf,
 

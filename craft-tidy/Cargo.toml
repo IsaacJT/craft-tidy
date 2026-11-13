@@ -3,7 +3,7 @@ name = "craft-tidy"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.89"
-description = "A linter for Snapcraft projects"
+description = "A linter for the project files of the craft tools, such as snapcraft.yaml"
 license = "GPL-3.0-only"
 
 [dependencies]

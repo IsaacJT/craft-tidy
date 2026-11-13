@@ -396,7 +396,48 @@ fn missing_project_file_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
     let output = craft_tidy(dir.path(), &["--no-config"]);
     assert_eq!(output.status.code(), Some(2));
-    assert!(stderr(&output).contains("no snapcraft.yaml found"));
+    assert!(stderr(&output).contains("no craft project file found"));
+}
+
+#[test]
+fn lints_the_project_files_of_all_craft_tools() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("rockcraft.yaml"), "a: [c, b]\n").unwrap();
+    fs::write(dir.path().join("snapcraft.yaml"), "a: 1\n").unwrap();
+    let output = craft_tidy(
+        dir.path(),
+        &["--no-config", "-o", "style-sorted-lists.keys=a"],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let out = stdout(&output);
+    let lines: Vec<_> = out.lines().collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    // rockcraft.yaml comes first; project-file-location only applies to
+    // Snapcraft, so a rockcraft.yaml in the root is fine.
+    assert!(lines[0].contains("rockcraft.yaml") && lines[0].contains("[style-sorted-lists]"));
+    assert!(lines[1].contains("snapcraft.yaml") && lines[1].contains("[project-file-location]"));
+}
+
+#[test]
+fn list_checks_and_explain_show_which_tools_a_check_applies_to() {
+    let dir = project(None);
+    let output = craft_tidy(dir.path(), &["--no-config", "--list-checks"]);
+    let out = stdout(&output);
+    let line = out
+        .lines()
+        .find(|l| l.contains("project-file-location"))
+        .unwrap();
+    assert!(line.ends_with("(snapcraft only)"), "{line}");
+    let line = out
+        .lines()
+        .find(|l| l.contains("style-line-length"))
+        .unwrap();
+    assert!(!line.contains(" only)"), "{line}");
+
+    let output = craft_tidy(dir.path(), &["--explain", "project-file-location"]);
+    assert!(stdout(&output).contains("\nApplies to: snapcraft\n"));
+    let output = craft_tidy(dir.path(), &["--explain", "style-line-length"]);
+    assert!(!stdout(&output).contains("Applies to:"));
 }
 
 #[test]

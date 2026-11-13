@@ -1,27 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Locating and loading the Snapcraft project file.
+//! Locating and loading craft project files.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::craft::Craft;
 use crate::error::Error;
 use crate::yaml::Document;
 
-/// Locations of the project file relative to the project directory, in the
-/// order Snapcraft searches them; the first one found is used.
-pub const PROJECT_FILE_LOCATIONS: &[&str] = &[
-    "snapcraft.yaml",
-    "snap/snapcraft.yaml",
-    "build-aux/snap/snapcraft.yaml",
-    ".snapcraft.yaml",
-];
-
-/// A Snapcraft project file to be linted.
+/// A craft project file to be linted, such as `snapcraft.yaml`.
 #[derive(Debug, Clone)]
 pub struct Project {
     /// Path to the project file.
     pub path: PathBuf,
+    /// The craft tool the file is for, identified by its name; `None` for a
+    /// file with another name given explicitly.
+    pub craft: Option<Craft>,
     /// The parsed project file.
     pub document: Document,
 }
@@ -31,19 +26,28 @@ impl Project {
     pub fn new(path: impl Into<PathBuf>, source: impl Into<String>) -> Result<Self, Error> {
         let path = path.into();
         match Document::parse(source) {
-            Ok(document) => Ok(Self { path, document }),
+            Ok(document) => Ok(Self {
+                craft: Craft::from_path(&path),
+                path,
+                document,
+            }),
             Err(error) => Err(Error::Syntax { path, error }),
         }
     }
 
-    /// Loads the project file at `path`, or found in the directory `path`.
+    /// Loads the project file at `path`.
     pub fn load(path: &Path) -> Result<Self, Error> {
-        let path = find(path)?;
-        let source = fs::read_to_string(&path).map_err(|source| Error::Io {
-            path: path.clone(),
+        let source = fs::read_to_string(path).map_err(|source| Error::Io {
+            path: path.to_owned(),
             source,
         })?;
         Self::new(path, source)
+    }
+
+    /// Loads the project file at `path`, or all project files found in the
+    /// directory `path` (see [`find`]).
+    pub fn load_all(path: &Path) -> Result<Vec<Self>, Error> {
+        find(path)?.iter().map(|path| Self::load(path)).collect()
     }
 
     /// Contents of the project file.
@@ -52,15 +56,26 @@ impl Project {
     }
 }
 
-/// Resolves `path` to a project file: either `path` itself if it is a file,
-/// or the first project file found in the directory `path`.
-pub fn find(path: &Path) -> Result<PathBuf, Error> {
+/// Resolves `path` to project files: `path` itself if it is a file, or else
+/// the project file of every craft tool that has one in the directory
+/// `path`, in alphabetical order of the tools. For each tool, the file it
+/// would use itself is chosen, following its search order.
+pub fn find(path: &Path) -> Result<Vec<PathBuf>, Error> {
     if path.is_file() {
-        return Ok(path.to_owned());
+        return Ok(vec![path.to_owned()]);
     }
-    PROJECT_FILE_LOCATIONS
+    let found: Vec<PathBuf> = Craft::ALL
         .iter()
-        .map(|location| path.join(location))
-        .find(|candidate| candidate.is_file())
-        .ok_or_else(|| Error::ProjectNotFound(path.to_owned()))
+        .filter_map(|craft| {
+            craft
+                .project_file_locations()
+                .iter()
+                .map(|location| path.join(location))
+                .find(|candidate| candidate.is_file())
+        })
+        .collect();
+    if found.is_empty() {
+        return Err(Error::ProjectNotFound(path.to_owned()));
+    }
+    Ok(found)
 }

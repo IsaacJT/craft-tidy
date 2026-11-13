@@ -6,6 +6,7 @@ mod common;
 
 use craft_tidy::checks::{self, Check, Diagnostic, OptionKind, Severity};
 use craft_tidy::config::{CheckOptions, OptionValue, Settings};
+use craft_tidy::craft::Craft;
 use craft_tidy::error::Error;
 use craft_tidy::project::Project;
 
@@ -291,6 +292,41 @@ fn runs_enabled_checks_sorted_by_location() {
             ("parts-a", Severity::Warning, "part a"),
         ]
     );
+}
+
+#[test]
+fn checks_only_run_and_fix_for_the_crafts_they_apply_to() {
+    let snap_only = FakeCheck::new("parts-a")
+        .finding("x", None)
+        .replacing("foo", "bar")
+        .only_for(&[Craft::Snapcraft]);
+    let (runs, fixes) = (snap_only.runs.clone(), snap_only.fixes.clone());
+    let settings = Settings::defaults();
+    let checks: [&dyn Check; 1] = [&snap_only];
+
+    let rock = Project::new("rockcraft.yaml", "a: foo\n").unwrap();
+    let other = Project::new("custom.yaml", "a: foo\n").unwrap();
+    for project in [&rock, &other] {
+        assert!(checks::run(&checks, project, &settings).is_empty());
+        assert!(checks::fix(&checks, project, &settings).is_none());
+    }
+    assert_eq!((runs.get(), fixes.get()), (0, 0));
+
+    let snap = Project::new("snap/snapcraft.yaml", "a: foo\n").unwrap();
+    assert_eq!(checks::run(&checks, &snap, &settings).len(), 2);
+    let fixed = checks::fix(&checks, &snap, &settings).unwrap();
+    assert_eq!(fixed.source(), "a: bar\n");
+}
+
+#[test]
+fn applies_to_matches_crafts() {
+    let all = FakeCheck::new("parts-a");
+    assert!(checks::applies_to(&all, None));
+    assert!(checks::applies_to(&all, Some(Craft::Rockcraft)));
+    let some = FakeCheck::new("parts-a").only_for(&[Craft::Charmcraft, Craft::Rockcraft]);
+    assert!(checks::applies_to(&some, Some(Craft::Rockcraft)));
+    assert!(!checks::applies_to(&some, Some(Craft::Snapcraft)));
+    assert!(!checks::applies_to(&some, None));
 }
 
 #[test]

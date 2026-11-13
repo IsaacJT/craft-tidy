@@ -4,6 +4,7 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
+use crate::craft::Craft;
 use crate::yaml::SyntaxError;
 
 #[derive(Debug)]
@@ -16,7 +17,7 @@ pub enum Error {
     Config { source: String, details: String },
     /// The effective configuration could not be serialized.
     Serialize(String),
-    /// No snapcraft.yaml was found for the given path.
+    /// No craft project file was found for the given path.
     ProjectNotFound(PathBuf),
     /// The project file is not valid YAML.
     Syntax { path: PathBuf, error: SyntaxError },
@@ -41,9 +42,16 @@ impl fmt::Display for Error {
             Self::Serialize(message) => {
                 write!(f, "failed to serialize configuration: {message}")
             }
-            Self::ProjectNotFound(path) => {
-                write!(f, "no snapcraft.yaml found in {}", path.display())
-            }
+            Self::ProjectNotFound(path) => write!(
+                f,
+                "no craft project file found in {} (looked for {})",
+                path.display(),
+                Craft::ALL
+                    .iter()
+                    .map(|craft| format!("{craft}.yaml"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Self::Syntax { path, error } => write!(
                 f,
                 "{}:{}:{}: invalid YAML: {}",

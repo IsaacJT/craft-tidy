@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::checks::{self, Check, Severity};
 use crate::cli::Cli;
 use crate::config::{self, Settings};
+use crate::craft::Craft;
 use crate::error::Error;
 use crate::project::Project;
 
@@ -66,21 +67,38 @@ pub fn run_with_checks(
         return Ok(Status::Success);
     }
 
-    let mut project = Project::load(&cli.path)?;
+    let projects = Project::load_all(&cli.path)?;
     if enabled.is_empty() {
         writeln!(err, "craft-tidy: warning: no checks enabled").map_err(Error::Output)?;
     }
 
-    let mut diagnostics = checks::run(&enabled, &project, &settings);
+    let mut status = Status::Success;
+    for project in projects {
+        if lint(project, &enabled, &settings, out, err)? == Status::LintErrors {
+            status = Status::LintErrors;
+        }
+    }
+    Ok(status)
+}
+
+/// Lints (and with `fix` enabled, fixes) a single project file.
+fn lint(
+    mut project: Project,
+    enabled: &[&dyn Check],
+    settings: &Settings,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> Result<Status, Error> {
+    let mut diagnostics = checks::run(enabled, &project, settings);
     if settings.fix_enabled()
         && !diagnostics.is_empty()
-        && let Some(fixed) = checks::fix(&enabled, &project, &settings)
+        && let Some(fixed) = checks::fix(enabled, &project, settings)
     {
         fs::write(&fixed.path, fixed.source()).map_err(|source| Error::Io {
             path: fixed.path.clone(),
             source,
         })?;
-        let remaining = checks::run(&enabled, &fixed, &settings);
+        let remaining = checks::run(enabled, &fixed, settings);
         writeln!(
             err,
             "craft-tidy: applied fixes to {} ({} issue(s) found, {} remaining)",
@@ -158,6 +176,9 @@ fn explain(check: &dyn Check, out: &mut dyn Write) -> std::io::Result<()> {
         check.summary(),
         check.explanation()
     )?;
+    if let Some(crafts) = check.crafts() {
+        writeln!(out, "\nApplies to: {}", craft_names(crafts))?;
+    }
     if !check.options().is_empty() {
         writeln!(out, "\nOptions:")?;
         for spec in check.options() {
@@ -178,7 +199,24 @@ fn list_checks(enabled: &[&dyn Check], out: &mut dyn Write) -> std::io::Result<(
     let width = enabled.iter().map(|c| c.name().len()).max().unwrap_or(0);
     writeln!(out, "Enabled checks:")?;
     for check in enabled {
-        writeln!(out, "    {:width$}  {}", check.name(), check.summary())?;
+        let only = check
+            .crafts()
+            .map(|crafts| format!(" ({} only)", craft_names(crafts)))
+            .unwrap_or_default();
+        writeln!(
+            out,
+            "    {:width$}  {}{only}",
+            check.name(),
+            check.summary()
+        )?;
     }
     Ok(())
+}
+
+fn craft_names(crafts: &[Craft]) -> String {
+    crafts
+        .iter()
+        .map(|craft| craft.name())
+        .collect::<Vec<_>>()
+        .join(", ")
 }

@@ -14,6 +14,7 @@ use clap::Parser;
 use craft_tidy::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use craft_tidy::cli::Cli;
 use craft_tidy::config::OptionValue;
+use craft_tidy::craft::Craft;
 use craft_tidy::fix::{Edit, apply_edits};
 use craft_tidy::yaml::Document;
 use tempfile::TempDir;
@@ -112,6 +113,7 @@ pub struct FakeCheck {
     pub replace: Option<(&'static str, &'static str)>,
     pub runs: Rc<Cell<usize>>,
     pub fixes: Rc<Cell<usize>>,
+    pub crafts: Option<&'static [Craft]>,
 }
 
 impl FakeCheck {
@@ -123,6 +125,7 @@ impl FakeCheck {
             replace: None,
             runs: Rc::default(),
             fixes: Rc::default(),
+            crafts: None,
         }
     }
 
@@ -133,6 +136,11 @@ impl FakeCheck {
 
     pub fn replacing(mut self, word: &'static str, replacement: &'static str) -> Self {
         self.replace = Some((word, replacement));
+        self
+    }
+
+    pub fn only_for(mut self, crafts: &'static [Craft]) -> Self {
+        self.crafts = Some(crafts);
         self
     }
 
@@ -165,6 +173,10 @@ impl Check for FakeCheck {
             }
             _ => Ok(()),
         }
+    }
+
+    fn crafts(&self) -> Option<&'static [Craft]> {
+        self.crafts
     }
 
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic> {

@@ -1,9 +1,11 @@
 # craft-tidy
 
-craft-tidy is a linter for [Snapcraft](https://snapcraft.io) projects. It
-inspects `snapcraft.yaml` files and reports common mistakes, deprecated
+craft-tidy is a linter for the project files of Canonical's craft tools:
+`snapcraft.yaml` ([Snapcraft](https://snapcraft.io)), `charmcraft.yaml`
+(Charmcraft), `rockcraft.yaml` (Rockcraft), `imagecraft.yaml` (Imagecraft)
+and `debcraft.yaml` (Debcraft). It reports common mistakes, deprecated
 constructs and deviations from packaging best practices, so problems can be
-caught before running a (potentially lengthy) snap build.
+caught before running a (potentially lengthy) build.
 
 craft-tidy is written in Rust and is itself distributed as a snap.
 
@@ -33,10 +35,21 @@ craft-tidy [OPTIONS] [PATH]
 ```
 
 `PATH` is a project directory (default: the current directory) or the path
-of a `snapcraft.yaml` file. In a directory, the project file is searched for
-in the same locations and order as Snapcraft does, so that craft-tidy checks
-the file Snapcraft would build: `snapcraft.yaml`, `snap/snapcraft.yaml`,
-`build-aux/snap/snapcraft.yaml` and `.snapcraft.yaml`.
+of a project file. In a directory, craft-tidy lints the project file of
+every craft tool it finds there, one after the other (in alphabetical order
+of the tools), each in the place the tool itself reads it from:
+
+| Tool       | Project file locations, in search order                                                  |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| Charmcraft | `charmcraft.yaml`                                                                        |
+| Debcraft   | `debcraft.yaml`                                                                          |
+| Imagecraft | `imagecraft.yaml`                                                                        |
+| Rockcraft  | `rockcraft.yaml`                                                                         |
+| Snapcraft  | `snapcraft.yaml`, `snap/snapcraft.yaml`, `build-aux/snap/snapcraft.yaml`, `.snapcraft.yaml` |
+
+Only the first file found for a tool is used, as the tool itself would. The
+tool a file belongs to is recognised from its name; a file given explicitly
+with another name is linted with the checks that apply to all tools.
 
 Findings are printed one per line as
 `path:line:column: severity: message [check-name]`.
@@ -161,11 +174,14 @@ non-hidden parent directory) instead.
 
 ## Checks
 
-| Check                   | Fixable | Description                                                    |
-| ----------------------- | ------- | -------------------------------------------------------------- |
-| `project-file-location` | No      | The project file must be in `snap/`, not the project root      |
-| `style-line-length`     | Partly  | Lines must not be longer than `max-length` characters          |
-| `style-sorted-lists`    | Yes     | Entries of unordered lists must be sorted alphabetically       |
+| Check                   | Applies to | Fixable | Description                                               |
+| ----------------------- | ---------- | ------- | --------------------------------------------------------- |
+| `project-file-location` | Snapcraft  | No      | The project file must be in `snap/`, not the project root |
+| `style-line-length`     | All tools  | Partly  | Lines must not be longer than `max-length` characters     |
+| `style-sorted-lists`    | All tools  | Yes     | Entries of unordered lists must be sorted alphabetically  |
+
+`--list-checks` marks checks that only apply to some tools, and `--explain`
+names them.
 
 Check names start with their category, so whole categories can be selected
 with globs such as `--checks='-*,style-*'`: `project-` checks are about the
@@ -177,8 +193,8 @@ Run `craft-tidy --list-checks --checks='*'` to list all checks and
 
 ### project-file-location
 
-Reports a project file named `snapcraft.yaml` or `.snapcraft.yaml` in the
-root of the project. Keep it at `snap/snapcraft.yaml` instead, next to the
+Snapcraft only. Reports a project file named `snapcraft.yaml` or
+`.snapcraft.yaml` in the root of the project. Keep it at `snap/snapcraft.yaml` instead, next to the
 other snap-specific files such as `snap/hooks`, `snap/gui` and `snap/local`,
 so that the packaging stays apart from the application's own files.
 `build-aux/snap/snapcraft.yaml`, which Snapcraft supports for projects that
@@ -187,7 +203,9 @@ use `snap/` for something else, is accepted too.
 Moving the file does not change how the snap is built, as Snapcraft
 resolves paths such as `source: .` relative to the project root. The file is
 not moved by `--fix`; move it yourself, for example with
-`git mv snapcraft.yaml snap/snapcraft.yaml`.
+`git mv snapcraft.yaml snap/snapcraft.yaml`. The other craft tools only read
+their project file from the project root, so the check does not apply to
+them.
 
 ### style-line-length
 
@@ -219,8 +237,8 @@ wrapped safely and are only reported.
 
 Reports lists whose entries are not in alphabetical order (ignoring case
 by default). Only lists under the keys selected by the `keys` option are
-checked. By default these are keys whose lists are unordered sets for
-Snapcraft, so sorting them never changes the meaning of the project:
+checked. By default these are keys whose lists are unordered sets for the
+craft tools (mostly part keys shared by all of them), so sorting them never changes the meaning of the project:
 `after`, `assumes`, `before`, `build-attributes`, `build-for`, `build-on`,
 `build-packages`, `build-snaps`, `plugs`, `slots`, `stage-packages` and
 `stage-snaps`, wherever they appear. Lists whose order matters, such as

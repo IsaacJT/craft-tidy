@@ -14,8 +14,9 @@ use crate::yaml::{CollectionStyle, Document, Node, NodeKind, Value};
 
 const NAME: &str = "style-sorted-lists";
 
-/// Keys whose lists are unordered sets in Snapcraft projects, so that
-/// sorting them cannot change the meaning of the project.
+/// Keys whose lists are unordered sets in the projects of the craft tools
+/// (most are craft-parts keys shared by all of them), so that sorting them
+/// cannot change the meaning of the project.
 const DEFAULT_KEYS: &str = "after,assumes,before,build-attributes,build-for,build-on,\
                             build-packages,build-snaps,plugs,slots,stage-packages,stage-snaps";
 
@@ -52,7 +53,7 @@ impl Check for SortedLists {
         "Reports lists whose entries are not sorted alphabetically, for the \
          keys selected by the keys option (by default, keys such as \
          build-packages, stage-packages, plugs and after, whose order does \
-         not matter to Snapcraft).\n\
+         not matter to the craft tools).\n\
          \n\
          Advanced grammar entries (on ...:, to ...:, for ...:, try:, else: \
          and else fail) must come after all plain entries, in their original order so \

@@ -9,6 +9,7 @@ mod sorted_lists;
 use std::fmt;
 
 use crate::config::{CheckOptions, OptionValue, Settings};
+use crate::craft::Craft;
 use crate::error::Error;
 use crate::project::Project;
 use crate::yaml::Document;
@@ -132,6 +133,12 @@ pub trait Check {
     fn validate_option(&self, _name: &str, _value: &OptionValue) -> Result<(), String> {
         Ok(())
     }
+    /// The craft tools whose project files the check applies to, or `None`
+    /// (the default) for all project files, including files whose tool is
+    /// unknown.
+    fn crafts(&self) -> Option<&'static [Craft]> {
+        None
+    }
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic>;
     /// Fixes as many of the reported problems as possible, returning the
     /// fixed document, or `None` if nothing could be fixed. Implementations
@@ -198,14 +205,26 @@ pub fn enabled<'a>(checks: &'a [Box<dyn Check>], settings: &Settings) -> Vec<&'a
         .collect()
 }
 
-/// Runs `checks` on `project` and applies `warnings-as-errors`.
+/// Whether `check` applies to project files of the tool `craft`.
+pub fn applies_to(check: &dyn Check, craft: Option<Craft>) -> bool {
+    match check.crafts() {
+        None => true,
+        Some(crafts) => craft.is_some_and(|craft| crafts.contains(&craft)),
+    }
+}
+
+/// Runs those of `checks` that apply to `project` and applies
+/// `warnings-as-errors`.
 pub fn run(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Vec<Diagnostic> {
     let ctx = Context {
         project,
         options: &settings.check_options,
     };
-    let mut diagnostics: Vec<Diagnostic> =
-        checks.iter().flat_map(|check| check.run(&ctx)).collect();
+    let mut diagnostics: Vec<Diagnostic> = checks
+        .iter()
+        .filter(|check| applies_to(**check, project.craft))
+        .flat_map(|check| check.run(&ctx))
+        .collect();
     for diagnostic in &mut diagnostics {
         if settings.warnings_as_errors.matches(diagnostic.check) {
             diagnostic.severity = Severity::Error;
@@ -225,7 +244,10 @@ pub fn fix(checks: &[&dyn Check], project: &Project, settings: &Settings) -> Opt
     let mut current = project.clone();
     for _ in 0..MAX_FIX_PASSES {
         let mut changed = false;
-        for check in checks {
+        for check in checks
+            .iter()
+            .filter(|check| applies_to(**check, project.craft))
+        {
             let ctx = Context {
                 project: &current,
                 options: &settings.check_options,

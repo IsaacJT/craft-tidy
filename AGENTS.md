@@ -4,7 +4,9 @@ Guidance for AI coding agents working in this repository.
 
 ## Project overview
 
-craft-tidy is a linter for Snapcraft projects (`snapcraft.yaml`), written in
+craft-tidy is a linter for the project files of Canonical's craft tools
+(`snapcraft.yaml`, `charmcraft.yaml`, `rockcraft.yaml`, `imagecraft.yaml`,
+`debcraft.yaml`), written in
 Rust and distributed as a strictly confined snap. It is licensed
 `GPL-3.0-only`.
 
@@ -26,7 +28,11 @@ check framework and `--fix` exist. Implemented checks:
   - `src/config.rs` - `Settings`, `CheckOptions`, `OptionValue`, `.craft-tidy`
     parsing/serialization and upward discovery
   - `src/glob.rs` - `GlobList`, clang-tidy style check globs
-  - `src/project.rs` - locating/loading `snapcraft.yaml`; `Project` holds the
+  - `src/craft.rs` - `Craft` enum: tool names, `project_file_locations()`
+    (each tool's search order; only Snapcraft has more than `<name>.yaml`)
+    and `from_path()` (tool from the file name)
+  - `src/project.rs` - `find()` returns the project file of every tool found
+    in a directory (or the given file); `Project` holds the `craft`, the
     path and the parsed `yaml::Document` (`project.source()` for the text)
   - `src/yaml.rs` - `Document` (source text, node tree, comment spans, line
     helpers), `Node` with byte-range `span`s, and the presentation-free
@@ -37,7 +43,8 @@ check framework and `--fix` exist. Implemented checks:
     the enabled checks' `Check::fix` until nothing changes, max 10)
   - `src/checks/project_file_location.rs` - `project-file-location`: reports
     `snapcraft.yaml`/`.snapcraft.yaml` whose (absolute) parent directory is
-    not named `snap` (so `build-aux/snap/` is fine); path-only, no fix
+    not named `snap` (so `build-aux/snap/` is fine); Snapcraft-only
+    (`crafts()`), path-only, no fix
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments
@@ -97,6 +104,10 @@ check framework and `--fix` exist. Implemented checks:
 - Implement `Check`, register in `checks::registry()`, read options via
   `ctx.options.get(name, key)`, emit `Diagnostic::warning(..)`. The runner
   applies `warnings-as-errors`.
+- Checks apply to every tool's project file by default. Restrict one with
+  `Check::crafts()` (e.g. `project-file-location` is Snapcraft-only);
+  `checks::applies_to` filters both `run` and `fix`. Files whose tool is
+  unknown (`Project::craft == None`) only get unrestricted checks.
 - Declare every option in `Check::options()` (`OptionSpec`: name, `OptionKind`,
   default shown by `--explain`, description) and put extra constraints in
   `Check::validate_option()`. `checks::validate_options()` runs before any
@@ -120,7 +131,7 @@ check framework and `--fix` exist. Implemented checks:
 ## Testing
 
 - All tests live in `craft-tidy/tests/`, one file per module (`glob.rs`,
-  `config.rs`, `cli.rs`, `project.rs`, `yaml.rs`, `fix.rs`, `checks.rs`,
+  `config.rs`, `cli.rs`, `craft.rs`, `project.rs`, `yaml.rs`, `fix.rs`, `checks.rs`,
   `app.rs`), plus
   `example.rs` (the example config) and `binary.rs` (end-to-end runs of the
   compiled binary). Shared helpers are in `tests/common/mod.rs`, included

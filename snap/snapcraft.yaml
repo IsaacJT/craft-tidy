@@ -1,11 +1,13 @@
 name: craft-tidy
 base: core26
 version: '0.1.0'
-summary: A linter for Snapcraft projects
+summary: A linter for craft project files such as snapcraft.yaml
 description: |
-  craft-tidy checks snapcraft.yaml files for common mistakes, deprecated
-  constructs and deviations from packaging best practices, helping you
-  catch problems before you run a (potentially lengthy) snap build.
+  craft-tidy checks the project files of Canonical's craft tools
+  (snapcraft.yaml, charmcraft.yaml, rockcraft.yaml, imagecraft.yaml and
+  debcraft.yaml) for common mistakes, deprecated constructs and deviations
+  from packaging best practices, helping you catch problems before you run
+  a (potentially lengthy) build.
 license: GPL-3.0-only
 
 grade: devel

@@ -53,7 +53,8 @@ The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
 | `cli`         | Command line definition (clap derive) and flag parsing           |
 | `config`      | `Settings` layers, `.craft-tidy` parsing, merging and discovery  |
 | `glob`        | clang-tidy style check selection globs                           |
-| `project`     | Locating, loading and parsing the `snapcraft.yaml` file          |
+| `craft`       | The supported craft tools and their project file locations       |
+| `project`     | Locating, loading and parsing craft project files                |
 | `yaml`        | YAML document tree with source positions, and the `Value` model  |
 | `fix`         | Verified text edits used by checks to fix problems               |
 | `checks`      | The `Check` trait, the check registry and the check runner       |
@@ -71,7 +72,8 @@ module through the crate's public API:
 | `tests/glob.rs`    | `glob`: parsing, matching, precedence, YAML (de)serialization   |
 | `tests/config.rs`  | `config`: parsing, validation, merging, serialization, discovery |
 | `tests/cli.rs`     | `cli`: argument parsing and validation                          |
-| `tests/project.rs` | `project`: locating, loading and parsing `snapcraft.yaml`       |
+| `tests/craft.rs`   | `craft`: tool names, project file locations, file recognition   |
+| `tests/project.rs` | `project`: locating, loading and parsing project files          |
 | `tests/yaml.rs`    | `yaml`: tree structure, spans, values, lines, syntax errors     |
 | `tests/fix.rs`     | `fix`: applying, verifying and skipping edits                   |
 | `tests/check_*.rs` | One file per check, e.g. `check_line_length.rs`: findings, options and fixes |
@@ -106,7 +108,10 @@ Guidelines:
    where it fits, and document any new category in `README.md`.
 2. Implement the `Check` trait from `craft-tidy/src/checks/mod.rs` in a new
    module under `craft-tidy/src/checks/`. `summary()` is shown by
-   `--list-checks` and `explanation()` by `--explain`.
+   `--list-checks` and `explanation()` by `--explain`. Checks apply to the
+   project files of all craft tools by default; if a check only makes sense
+   for some of them, return those from `crafts()` (for example
+   `Some(&[Craft::Snapcraft])`), and the runner skips it for other files.
 3. Declare the check's options in `options()` as `OptionSpec`s (name, type,
    default, description); craft-tidy rejects any other option and values of
    the wrong type. Implement `validate_option()` for further constraints,
@@ -127,8 +132,8 @@ Guidelines:
 7. Add tests in a new file `craft-tidy/tests/check_<name>.rs` covering
    projects that pass, projects that fail, each option, and for fixable
    checks the fixed output as well as problems that must not be fixed.
-8. Document the check and its options in `README.md`, and show its options
-   in `examples/.craft-tidy`.
+8. Document the check, the tools it applies to and its options in
+   `README.md`, and show its options in `examples/.craft-tidy`.
 
 ## Adding a configuration setting
 

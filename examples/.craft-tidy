@@ -1,6 +1,6 @@
 # Example craft-tidy configuration.
 #
-# Copy this file to the root of your Snapcraft project as `.craft-tidy`.
+# Copy this file to the root of your craft project as `.craft-tidy`.
 # craft-tidy looks for it in the project directory and its parents. Every key
 # is optional; omitted keys keep their defaults. Every value below is the
 # default, so the copy changes nothing until you edit it. Command line flags
@@ -35,7 +35,7 @@ check-options:
     max-length: 80
   style-sorted-lists:
     # Globs selecting the keys whose lists must be sorted, in the same syntax
-    # as `checks`. Only include keys whose order does not matter to Snapcraft
+    # as `checks`. Only include keys whose order does not matter to the craft tools
     # (not, for example, command-chain or build tool arguments). Spaces after
     # commas are ignored, so the value can continue on the next line. The
     # default is shown here.
