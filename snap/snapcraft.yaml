@@ -1,4 +1,5 @@
 name: craft-tidy
+title: craft-tidy
 base: core26
 version: '0.1.0'
 summary: A linter for craft project files such as snapcraft.yaml
@@ -9,6 +10,10 @@ description: |
   from packaging best practices, helping you catch problems before you run
   a (potentially lengthy) build.
 license: GPL-3.0-only
+contact: isaac.true@canonical.com
+issues: https://github.com/IsaacJT/craft-tidy/issues
+source-code: https://github.com/IsaacJT/craft-tidy
+website: https://github.com/IsaacJT/craft-tidy
 
 grade: devel
 confinement: strict

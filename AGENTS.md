@@ -289,7 +289,10 @@ settings or exit behaviour go in `cli`, `config`, `errors` or `fix`.
   deprecated `serde_yaml`/`serde_yml` crates.
 - Add positive and negative tests in `craft-tidy/tests/` for any new check,
   setting or bug fix.
-- Keep `version` in `craft-tidy/Cargo.toml` and `snap/snapcraft.yaml` in sync.
+- Keep `version` in `craft-tidy/Cargo.toml` and `snap/snapcraft.yaml` in sync,
+  and the author and upstream metadata too: `authors`, `repository` and
+  `homepage` in `Cargo.toml`, and `contact`, `issues`, `source-code` and
+  `website` in `snapcraft.yaml` (upstream: https://github.com/IsaacJT/craft-tidy).
 - If the app needs new system access, add the appropriate interface plug in
   `snap/snapcraft.yaml` and document it in `README.md`.
 - Do not commit build artifacts (`target/`, `*.snap`, `parts/`, `stage/`,
