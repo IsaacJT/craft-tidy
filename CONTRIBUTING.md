@@ -173,7 +173,8 @@ Settings must be available both in `.craft-tidy` and on the command line:
 
 1. Add the field to `Settings` in `craft-tidy/src/config.rs`. Keys are
    kebab-case in YAML.
-2. Define how it merges in `Settings::merge`: glob lists are appended, while
+2. Define how it merges in `Settings::merge`: glob lists are appended (a
+   `*` or `-*` glob replaces the globs before it), while
    scalar settings should be `Option<T>` with later layers overriding earlier
    ones (see `fix`). Give scalar settings a strict deserializer that rejects
    other YAML types, and a value in `Settings::defaults()` so that

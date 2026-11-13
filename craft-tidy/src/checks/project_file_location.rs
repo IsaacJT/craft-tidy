@@ -18,12 +18,13 @@ impl Check for ProjectFileLocation {
     }
 
     fn summary(&self) -> &'static str {
-        "The Snapcraft project file must be in the snap/ directory, not the project root"
+        "The Snapcraft project file must be in a snap/ directory (snap/ or build-aux/snap/)"
     }
 
     fn explanation(&self) -> &'static str {
         "Reports a Snapcraft project file (snapcraft.yaml or .snapcraft.yaml) \
-         that is in the root of the project. Keep it at snap/snapcraft.yaml \
+         that is not in a directory named snap, typically because it is in \
+         the root of the project. Keep it at snap/snapcraft.yaml \
          instead, next to the other snap-specific files such as snap/hooks, \
          snap/gui and snap/local, so that the packaging is kept apart from \
          the application's own files. build-aux/snap/snapcraft.yaml, which \

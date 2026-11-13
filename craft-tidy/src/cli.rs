@@ -19,8 +19,9 @@ later sources taking precedence:
   3. inline YAML passed with --config
   4. command line flags
 
-Check globs from each source are appended to the previous ones, and the last
-glob matching a check decides whether it is enabled. Use --dump-config to see
+Check globs from each source are appended to the previous ones (a '*' or '-*'
+glob replaces all globs before it), and the last glob matching a check
+decides whether it is enabled. Use --dump-config to see
 the effective configuration.";
 
 #[derive(Debug, Parser)]

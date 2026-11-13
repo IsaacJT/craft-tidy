@@ -51,6 +51,11 @@ Only the first file found for a tool is used, as the tool itself would. The
 tool a file belongs to is recognised from its name; a file given explicitly
 with another name is linted with the checks that apply to all tools.
 
+All project files are loaded before any is linted: if one of them cannot be
+read or is not valid YAML, craft-tidy reports that error, lints none of
+them and exits with status 2. If no project file is found, craft-tidy also
+exits with status 2.
+
 Findings are printed one per line as
 `path:line:column: severity: message [check-name]`.
 
@@ -101,7 +106,7 @@ changes.
 | ---- | ---------------------------------------------------------- |
 | 0    | No errors were found (warnings may have been reported)     |
 | 1    | At least one finding was reported as an error              |
-| 2    | Invalid usage, invalid configuration, a project file that is not valid YAML, or an I/O error |
+| 2    | Invalid usage, invalid configuration, no project file found, a project file that is not valid YAML, or an I/O error |
 
 ## Configuration
 
@@ -163,8 +168,10 @@ Settings are combined from these sources, each overriding the previous ones:
 
 Glob lists (`checks`, `warnings-as-errors`) from later sources are appended
 to earlier ones, so `--checks=-style-sorted-lists` disables
-`style-sorted-lists` on top of
-whatever the configuration file enables. Other settings, such as `fix`, are
+`style-sorted-lists` on top of whatever the configuration file enables. A
+`*` or `-*` glob matches every check, so it replaces all globs before it:
+with `checks: "-*"` in `.craft-tidy` and `--checks=style-sorted-lists`,
+the effective value is `-*,style-sorted-lists`. Other settings, such as `fix`, are
 replaced by later sources, and check options are overridden individually.
 Use `--dump-config` to see the result; its output is itself a valid
 `.craft-tidy` file.
@@ -182,7 +189,7 @@ non-hidden parent directory) instead.
 
 | Check                   | Applies to | Fixable | Description                                               |
 | ----------------------- | ---------- | ------- | --------------------------------------------------------- |
-| `project-file-location` | Snapcraft  | No      | The project file must be in `snap/`, not the project root |
+| `project-file-location` | Snapcraft  | No      | The project file must be in a `snap/` directory (`snap/` or `build-aux/snap/`) |
 | `style-line-length`     | All tools  | Partly  | Lines must not be longer than `max-length` characters     |
 | `style-sorted-lists`    | All tools  | Yes     | Entries of unordered lists must be sorted alphabetically  |
 
@@ -200,7 +207,10 @@ Run `craft-tidy --list-checks --checks='*'` to list all checks and
 ### project-file-location
 
 Snapcraft only. Reports a project file named `snapcraft.yaml` or
-`.snapcraft.yaml` in the root of the project. Keep it at `snap/snapcraft.yaml` instead, next to the
+`.snapcraft.yaml` that is not in a directory named `snap`, typically
+because it is in the root of the project (the same applies to a file given
+explicitly on the command line, wherever it is). Keep it at
+`snap/snapcraft.yaml` instead, next to the
 other snap-specific files such as `snap/hooks`, `snap/gui` and `snap/local`,
 so that the packaging stays apart from the application's own files.
 `build-aux/snap/snapcraft.yaml`, which Snapcraft supports for projects that

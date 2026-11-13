@@ -69,8 +69,9 @@ check framework and `--fix` exist. Implemented checks:
 - `.github/workflows/ci.yaml` - CI: fmt + clippy, `cargo test` on stable
   and the `rust-version` (keep the matrix in sync with `Cargo.toml`), and
   `canonical/craft-actions/snapcraft/pack@v1` with `test: true` (pack +
-  spread), uploading the snap as an artifact. Pinned to `ubuntu-24.04`: on
-  CI, `snapcraft test` runs on the runner itself and only selects
+  spread), uploading the snap as an artifact. The lint and test jobs use
+  `ubuntu-latest`; only the snap job is pinned to `ubuntu-24.04`, because
+  on CI `snapcraft test` runs on the runner itself and only selects
   `craft:<runner OS>`, so that system must stay in `snapcraft-test.yaml`
 - `snapcraft-test.yaml`, `spread/` - spread suite for `snapcraft test`:
   `spread/general/<task>/task.yaml` run the installed snap in an LXD VM;
@@ -91,7 +92,9 @@ check framework and `--fix` exist. Implemented checks:
   `.craft-tidy` (or `--config-file`; skipped with `--no-config`) → inline
   `--config` YAML → individual flags (`Cli::settings()`).
 - Merge rules (`Settings::merge`): `GlobList` fields are appended (last
-  matching glob wins); `check-options` are overridden per check and key.
+  matching glob wins; `GlobList::push` drops all earlier globs when a `*`
+  or `-*` glob is added, which `--dump-config` shows); `check-options` are
+  overridden per check and key.
   Scalar settings are `Option<T>` (`None` = not set in this layer) and
   override; `fix` is the model to follow (`--fix`/`--no-fix`, value in
   `Settings::defaults()`, skipped when `None` on serialization, strict
@@ -109,6 +112,13 @@ check framework and `--fix` exist. Implemented checks:
 - Every setting must be configurable both in the file and on the CLI.
 
 ## Checks
+
+Step-by-step checklists for adding a check or a setting are in
+`CONTRIBUTING.md` ("Adding a check", "Adding a configuration setting");
+follow them together with the rules below. The types involved (`Check`,
+`Context`, `Diagnostic`, `OptionSpec`, `OptionKind`) are in
+`src/checks/mod.rs`; `Check::fix` returns the fixed `yaml::Document`, or
+`None` if nothing changed.
 
 - Names are kebab-case with a category prefix. Existing categories:
   `project-` (project layout), `style-` (formatting of the project file).
@@ -169,8 +179,10 @@ check framework and `--fix` exist. Implemented checks:
 ## Exit codes
 
 `0` success, `1` at least one error-severity finding, `2` usage,
-configuration, project YAML syntax or I/O error (same as clap's usage error
-code).
+configuration, no project file found, project YAML syntax or I/O error
+(same as clap's usage error code). All project files of a directory are
+loaded (`Project::load_all`) before any is linted, so one invalid file
+stops the whole run with `2`.
 
 ## Commands
 
@@ -194,7 +206,16 @@ snapcraft test
 Before finishing a change, ensure `cargo fmt`, `cargo clippy` (no warnings)
 and `cargo test` all pass, and that `snapcraft pack` succeeds. Snap builds
 take a few minutes; run them in the background while doing other work.
-For changes to user-visible behaviour, also run `snapcraft test`.
+
+`snapcraft test` is required before committing a change to user-visible
+behaviour (CLI, output, checks, fixes, configuration, exit codes, project
+file discovery) or to the spread suite itself; it is not required for
+internal refactors and docs-only changes, where CI still runs it.
+
+If your environment cannot run `snapcraft pack` or `snapcraft test` (they
+need LXD or Multipass), do not skip them silently: still run the cargo
+checks, and state clearly in your report which commands you could not run
+and why, so that a human can run them before the commits are pushed.
 
 Keep the spread tasks in `spread/general/` up to date as the tool
 develops, in the same commit as the change: a new or changed check gets
@@ -209,7 +230,9 @@ settings or exit behaviour go in `cli`, `config`, `errors` or `fix`.
   update), not a dump of a whole session's work.
 - Every commit must pass `cargo fmt --check`, `cargo clippy --all-targets --
   -D warnings` and `cargo test`, **and** build the snap with `snapcraft pack`
-  from the repository root. This applies to docs-only commits too. Include
+  from the repository root. This applies to docs-only commits too. Changes
+  to user-visible behaviour must also pass `snapcraft test` (see
+  [Commands](#commands), including what to do if you cannot run them). Include
   the tests and doc updates (`README.md`, `CONTRIBUTING.md`, `AGENTS.md`,
   `examples/.craft-tidy`) for the code a commit adds.
 - To check a series of commits, run the checks on each one, e.g. with
