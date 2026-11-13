@@ -77,16 +77,23 @@ impl Check for CollapsedSequences {
             .into_iter()
             .map(|change| {
                 let (line, column) = document.position(change.sequence_start);
-                let message = if change.collapse {
-                    format!(
-                        "sequence has {} item(s), at most {max}; write it on one line as [{}]",
-                        change.items, change.joined,
-                    )
-                } else {
-                    format!(
-                        "sequence has {} items, more than {max}; write one item per line",
-                        change.items
-                    )
+                let key = &change.key;
+                let message = match (change.collapse, change.items) {
+                    (true, 1) => format!(
+                        "'{key}' has a single item, so it should be on one line: \
+                         {key}: [{}]",
+                        change.joined
+                    ),
+                    (true, items) => format!(
+                        "'{key}' has {items} items (max-collapsed-items is {max}), so it \
+                         should be on one line: {key}: [{}]",
+                        change.joined
+                    ),
+                    (false, items) => format!(
+                        "'{key}' has {items} {}, more than max-collapsed-items ({max}), so it \
+                         should have one item per line",
+                        if items == 1 { "item" } else { "items" }
+                    ),
                 };
                 Diagnostic::warning(NAME, message).at(line, column)
             })
@@ -118,6 +125,8 @@ fn max_items(ctx: &Context<'_>) -> usize {
 
 /// A sequence to collapse or expand.
 struct Change {
+    /// The key whose value the sequence is, as written.
+    key: String,
     sequence_start: usize,
     items: usize,
     collapse: bool,
@@ -292,6 +301,7 @@ impl Planner<'_> {
             _ => return None,
         };
         Some(Change {
+            key: self.source()[key.span.clone()].to_owned(),
             sequence_start: start,
             items: items.len(),
             collapse,

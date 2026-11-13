@@ -104,12 +104,12 @@ fn the_default_limit_is_one_item() {
             (
                 1,
                 8,
-                "sequence has 2 items, more than 1; write one item per line".to_owned()
+                "'plugs' has 2 items, more than max-collapsed-items (1), so it should have one item per line".to_owned()
             ),
             (
                 3,
                 3,
-                "sequence has 1 item(s), at most 1; write it on one line as [a]".to_owned()
+                "'slots' has a single item, so it should be on one line: slots: [a]".to_owned()
             ),
         ]
     );
@@ -140,7 +140,7 @@ fn reports_short_block_sequences() {
         [(
             3,
             3,
-            "sequence has 2 item(s), at most 2; write it on one line as [home, network]".to_owned()
+            "'plugs' has 2 items (max-collapsed-items is 2), so it should be on one line: plugs: [home, network]".to_owned()
         )]
     );
 }
@@ -152,7 +152,7 @@ fn reports_long_flow_sequences() {
         [(
             1,
             8,
-            "sequence has 3 items, more than 2; write one item per line".to_owned()
+            "'plugs' has 3 items, more than max-collapsed-items (2), so it should have one item per line".to_owned()
         )]
     );
 }
@@ -180,7 +180,16 @@ fn max_collapsed_items_sets_the_limit() {
     assert_eq!(lines(3), Vec::<usize>::new());
     assert_eq!(lines(4), [3]);
     // 0: every sequence is a block sequence.
-    assert_eq!(findings_with("a: [1]\n", &settings(Some(0))).len(), 1);
+    assert_eq!(
+        findings_with("a: [1]\n", &settings(Some(0))),
+        [(
+            1,
+            4,
+            "'a' has 1 item, more than max-collapsed-items (0), so it should have one item \
+             per line"
+                .to_owned()
+        )]
+    );
 }
 
 #[test]
