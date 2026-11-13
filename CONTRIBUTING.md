@@ -100,9 +100,10 @@ Guidelines:
 
 ## Adding a check
 
-1. Pick a kebab-case name prefixed with a category, e.g.
-   `metadata-summary-length`, so that users can select it with globs such as
-   `metadata-*`.
+1. Pick a kebab-case name prefixed with a category, so that users can
+   select related checks with globs such as `style-*`. Reuse an existing
+   category (`project-` for the project layout, `style-` for formatting)
+   where it fits, and document any new category in `README.md`.
 2. Implement the `Check` trait from `craft-tidy/src/checks/mod.rs` in a new
    module under `craft-tidy/src/checks/`. `summary()` is shown by
    `--list-checks` and `explanation()` by `--explain`.

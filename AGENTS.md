@@ -9,8 +9,8 @@ Rust and distributed as a strictly confined snap. It is licensed
 `GPL-3.0-only`.
 
 The project is in early development: the CLI, the configuration system, the
-check framework and `--fix` exist. Implemented checks: `style-line-length`,
-`style-sorted-lists`.
+check framework and `--fix` exist. Implemented checks:
+`project-file-location`, `style-line-length`, `style-sorted-lists`.
 
 ## Repository layout
 
@@ -35,6 +35,9 @@ check framework and `--fix` exist. Implemented checks: `style-line-length`,
   - `src/checks/mod.rs` - `Check` trait, `Diagnostic`, `registry()`,
     `enabled()`, `validate_options()`, `run()`, `fix()` (repeats passes over
     the enabled checks' `Check::fix` until nothing changes, max 10)
+  - `src/checks/project_file_location.rs` - `project-file-location`: reports
+    `snapcraft.yaml`/`.snapcraft.yaml` whose (absolute) parent directory is
+    not named `snap` (so `build-aux/snap/` is fine); path-only, no fix
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
     prose comments
@@ -86,7 +89,9 @@ check framework and `--fix` exist. Implemented checks: `style-line-length`,
 
 ## Checks
 
-- Names are kebab-case with a category prefix (e.g. `metadata-summary-length`).
+- Names are kebab-case with a category prefix. Existing categories:
+  `project-` (project layout), `style-` (formatting of the project file).
+  Reuse one where it fits; a new category must be documented in `README.md`.
 - Implement `Check`, register in `checks::registry()`, read options via
   `ctx.options.get(name, key)`, emit `Diagnostic::warning(..)`. The runner
   applies `warnings-as-errors`.

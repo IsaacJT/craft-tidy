@@ -158,13 +158,33 @@ non-hidden parent directory) instead.
 
 ## Checks
 
-| Check                | Fixable | Description                                              |
-| -------------------- | ------- | -------------------------------------------------------- |
-| `style-line-length`  | Partly  | Lines must not be longer than `max-length` characters    |
-| `style-sorted-lists` | Yes     | Entries of unordered lists must be sorted alphabetically |
+| Check                   | Fixable | Description                                                    |
+| ----------------------- | ------- | -------------------------------------------------------------- |
+| `project-file-location` | No      | The project file must be in `snap/`, not the project root      |
+| `style-line-length`     | Partly  | Lines must not be longer than `max-length` characters          |
+| `style-sorted-lists`    | Yes     | Entries of unordered lists must be sorted alphabetically       |
+
+Check names start with their category, so whole categories can be selected
+with globs such as `--checks='-*,style-*'`: `project-` checks are about the
+layout of the project, `style-` checks about the formatting of the project
+file.
 
 Run `craft-tidy --list-checks --checks='*'` to list all checks and
 `craft-tidy --explain CHECK` for details.
+
+### project-file-location
+
+Reports a project file named `snapcraft.yaml` or `.snapcraft.yaml` in the
+root of the project. Keep it at `snap/snapcraft.yaml` instead, next to the
+other snap-specific files such as `snap/hooks`, `snap/gui` and `snap/local`,
+so that the packaging stays apart from the application's own files.
+`build-aux/snap/snapcraft.yaml`, which Snapcraft supports for projects that
+use `snap/` for something else, is accepted too.
+
+Moving the file does not change how the snap is built, as Snapcraft
+resolves paths such as `source: .` relative to the project root. The file is
+not moved by `--fix`; move it yourself, for example with
+`git mv snapcraft.yaml snap/snapcraft.yaml`.
 
 ### style-line-length
 

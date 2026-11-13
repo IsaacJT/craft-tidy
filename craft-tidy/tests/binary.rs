@@ -292,6 +292,41 @@ fn explains_style_sorted_lists() {
 }
 
 #[test]
+fn reports_project_files_in_the_project_root() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("snapcraft.yaml"), "name: test\n").unwrap();
+    let expected = "./snapcraft.yaml: warning: snapcraft.yaml is in the project root; move it \
+                    to snap/snapcraft.yaml [project-file-location]\n";
+
+    let output = craft_tidy(dir.path(), &[]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(stdout(&output), expected);
+
+    let output = craft_tidy(dir.path(), &["--warnings-as-errors=project-*"]);
+    assert_eq!(output.status.code(), Some(1));
+
+    // --fix does not move the file.
+    let output = craft_tidy(dir.path(), &["--fix"]);
+    assert_eq!(stdout(&output), expected);
+    assert!(dir.path().join("snapcraft.yaml").is_file());
+    assert!(!dir.path().join("snap").exists());
+}
+
+#[test]
+fn accepts_project_files_in_snap_directories() {
+    let dir = project(None);
+    let check = "--checks=-*,project-file-location";
+    for (cwd, args) in [
+        (dir.path().to_owned(), vec![check]),
+        (dir.path().join("snap"), vec![check, "snapcraft.yaml"]),
+    ] {
+        let output = craft_tidy(&cwd, &args);
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        assert_eq!(stdout(&output), "", "{cwd:?} {args:?}");
+    }
+}
+
+#[test]
 fn help_describes_configuration() {
     let dir = project(None);
     let output = craft_tidy(dir.path(), &["--help"]);
