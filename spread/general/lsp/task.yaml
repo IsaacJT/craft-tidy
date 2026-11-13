@@ -54,6 +54,10 @@ execute: |
       for action in until(server, lambda m: m.get("id") == 3)["result"]:
           edit = action["edit"]["changes"]["file://" + path][0]
           print("action:", action["kind"], action["title"], "->", json.dumps(edit["newText"]))
+      send(server, {"jsonrpc": "2.0", "id": 4, "method": "textDocument/hover", "params": {
+          "textDocument": {"uri": "file://" + path}, "position": start}})
+      hover = until(server, lambda m: m.get("id") == 4)["result"]
+      print("hover:", hover["contents"]["value"].splitlines()[1])
   send(server, {"jsonrpc": "2.0", "id": 2, "method": "shutdown"})
   until(server, lambda m: m.get("id") == 2)
   send(server, {"jsonrpc": "2.0", "method": "exit"})
@@ -63,12 +67,14 @@ execute: |
   python3 client.py "$WORK/project/snap/snapcraft.yaml" > out.txt
   cat out.txt
   # The .craft-tidy next to the project disables style-collapsed-sequences.
-  test "$(wc -l < out.txt)" -eq 4
+  test "$(wc -l < out.txt)" -eq 5
   MATCH "^1 8 style-sorted-lists entries of 'plugs' are not sorted: 'a' should come before 'b'$" < out.txt
   # Quick fixes, suppression and fixing the whole file.
   grep -Fx 'action: quickfix Fix: entries of '"'plugs'"' are not sorted: '"'a'"' should come before '"'b'"' -> "a, b"' out.txt
   grep -Fx 'action: quickfix Suppress style-sorted-lists on this line with NOLINTNEXTLINE -> "# NOLINTNEXTLINE(style-sorted-lists)\n"' out.txt
   grep -Fx 'action: source.fixAll Fix all craft-tidy problems -> "a, b"' out.txt
+  # Hovering explains the check.
+  grep -Fx 'hover: style-sorted-lists: Entries of unordered lists must be sorted alphabetically' out.txt
 
   # Without an editor, the server fails.
   set +e

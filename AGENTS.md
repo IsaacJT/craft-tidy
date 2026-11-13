@@ -49,8 +49,13 @@ check framework and `--fix` exist. Implemented checks:
     the range a fix via `checks::fix_span` and a `NOLINTNEXTLINE`
     suppression (only if the data is unchanged and exactly that finding
     disappears), plus fix-all via `checks::fix`; edits are sent as one
-    minimal `TextEdit` (common prefix/suffix). Unknown requests get
-    `MethodNotFound`
+    minimal `TextEdit` (common prefix/suffix). `textDocument/hover`
+    (`hover()`): the `--explain` text (`app::explain`) of each check with a
+    finding at the position. Configuration reload: registers a
+    `**/.craft-tidy` file watcher if the client supports dynamic
+    registration, and re-publishes all open documents on
+    `workspace/didChangeWatchedFiles` or `didSave` of a `.craft-tidy`.
+    Unknown requests get `MethodNotFound`
   - `src/nolint.rs` - `Nolint::parse(document)`: `# NOLINT`,
     `# NOLINTNEXTLINE`, `# NOLINTBEGIN`/`# NOLINTEND`, each optionally
     with `(globs)` (no `-` globs, not empty) and trailing text; only real

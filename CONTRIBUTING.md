@@ -88,7 +88,7 @@ The crate is a library (`src/lib.rs`) with a thin binary (`src/main.rs`):
 | `config`      | `Settings` layers, `.craft-tidy` parsing, merging and discovery  |
 | `glob`        | clang-tidy style check selection globs                           |
 | `nolint`      | Parsing `NOLINT` comments that suppress findings                 |
-| `lsp`         | The language server (`craft-tidy lsp`): sync, diagnostics, code actions, UTF-16 positions |
+| `lsp`         | The language server (`craft-tidy lsp`): sync, diagnostics, code actions, hover, configuration reloading, UTF-16 positions |
 | `craft`       | The supported craft tools and their project file locations       |
 | `project`     | Locating, loading and parsing craft project files                |
 | `yaml`        | YAML document tree with source positions, and the `Value` model  |

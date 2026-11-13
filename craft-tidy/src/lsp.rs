@@ -47,20 +47,48 @@ pub fn run_stdio() -> Result<(), String> {
 /// Runs the server on `connection` until the editor shuts it down.
 pub fn serve(connection: Connection) -> Result<(), String> {
     let capabilities = serde_json::to_value(capabilities()).map_err(|e| e.to_string())?;
-    connection
+    let params = connection
         .initialize(capabilities)
         .map_err(|error| error.to_string())?;
+    let params: lsp_types::InitializeParams = parse(params)?;
     let mut server = Server {
         connection: &connection,
         registry: checks::registry(),
         documents: HashMap::new(),
     };
+    if can_watch_files(&params) {
+        server.watch_configuration()?;
+    }
     server.main_loop()
+}
+
+/// The name of configuration files, which are watched for changes.
+const CONFIG_FILE: &str = ".craft-tidy";
+
+/// Whether the client can be asked to report changes to files.
+fn can_watch_files(params: &lsp_types::InitializeParams) -> bool {
+    params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
+        .and_then(|watched| watched.dynamic_registration)
+        .unwrap_or(false)
 }
 
 fn capabilities() -> ServerCapabilities {
     ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+        text_document_sync: Some(TextDocumentSyncCapability::Options(
+            lsp_types::TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::FULL),
+                // To notice changes to configuration files saved in the
+                // editor, also without file watching.
+                save: Some(lsp_types::TextDocumentSyncSaveOptions::Supported(true)),
+                ..lsp_types::TextDocumentSyncOptions::default()
+            },
+        )),
         code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
             code_action_kinds: Some(vec![
                 CodeActionKind::QUICKFIX,
@@ -107,6 +135,39 @@ impl Server<'_> {
         Ok(())
     }
 
+    /// Asks the client to report changes to configuration files.
+    fn watch_configuration(&self) -> Result<(), String> {
+        use lsp_types::request::{RegisterCapability, Request as _};
+        let options = lsp_types::DidChangeWatchedFilesRegistrationOptions {
+            watchers: vec![lsp_types::FileSystemWatcher {
+                glob_pattern: lsp_types::GlobPattern::String(format!("**/{CONFIG_FILE}")),
+                kind: None,
+            }],
+        };
+        let params = lsp_types::RegistrationParams {
+            registrations: vec![lsp_types::Registration {
+                id: "craft-tidy-configuration".to_owned(),
+                method: "workspace/didChangeWatchedFiles".to_owned(),
+                register_options: Some(serde_json::to_value(options).map_err(|e| e.to_string())?),
+            }],
+        };
+        self.send(Message::Request(Request::new(
+            "craft-tidy-watch".to_owned().into(),
+            RegisterCapability::METHOD.to_owned(),
+            params,
+        )))
+    }
+
+    /// Checks all open documents again, as their configuration changed.
+    fn publish_all(&self) -> Result<(), String> {
+        for uri in self.documents.keys() {
+            if let Ok(uri) = uri.parse::<Uri>() {
+                self.publish(&uri)?;
+            }
+        }
+        Ok(())
+    }
+
     fn send(&self, message: Message) -> Result<(), String> {
         self.connection
             .sender
@@ -136,6 +197,21 @@ impl Server<'_> {
             };
             return Response::new_ok(request.id, actions);
         }
+        if request.method == lsp_types::request::HoverRequest::METHOD {
+            let params: lsp_types::HoverParams = match parse(request.params) {
+                Ok(params) => params,
+                Err(error) => {
+                    return Response::new_err(request.id, ErrorCode::InvalidParams as i32, error);
+                }
+            };
+            let position = params.text_document_position_params;
+            let uri = &position.text_document.uri;
+            let hover = self
+                .documents
+                .get(uri.as_str())
+                .and_then(|document| hover(&self.registry, uri, &document.text, position.position));
+            return Response::new_ok(request.id, hover);
+        }
         Response::new_err(
             request.id,
             ErrorCode::MethodNotFound as i32,
@@ -145,9 +221,21 @@ impl Server<'_> {
 
     fn handle_notification(&mut self, notification: Notification) -> Result<(), String> {
         use lsp_types::notification::{
-            DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
+            DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument,
+            DidOpenTextDocument, DidSaveTextDocument, Notification as _,
         };
         match notification.method.as_str() {
+            DidChangeWatchedFiles::METHOD => self.publish_all(),
+            DidSaveTextDocument::METHOD => {
+                let params: lsp_types::DidSaveTextDocumentParams = parse(notification.params)?;
+                let is_config = uri_to_path(&params.text_document.uri)
+                    .is_some_and(|path| path.file_name().is_some_and(|name| name == CONFIG_FILE));
+                if is_config {
+                    self.publish_all()
+                } else {
+                    Ok(())
+                }
+            }
             DidOpenTextDocument::METHOD => {
                 let params: lsp_types::DidOpenTextDocumentParams = parse(notification.params)?;
                 let document = params.text_document;
@@ -416,6 +504,62 @@ pub fn code_actions(
         }
     }
     actions
+}
+
+/// The explanations of the checks whose findings are at `position` of the
+/// document `uri` with contents `text`, as shown by `--explain`.
+pub fn hover(
+    registry: &[Box<dyn Check>],
+    uri: &Uri,
+    text: &str,
+    position: Position,
+) -> Option<lsp_types::Hover> {
+    let Analysis::Checked { findings, .. } = analyse(registry, uri, text) else {
+        return None;
+    };
+    let lines = LineIndex::new(text);
+    let offset = lines.offset_of(position);
+    let mut sections: Vec<(&str, String)> = Vec::new();
+    let mut range: Option<Range<usize>> = None;
+    for finding in &findings {
+        let Some(span) = finding.span.clone() else {
+            continue;
+        };
+        if offset < span.start || span.end < offset {
+            continue;
+        }
+        range = Some(match range {
+            Some(r) => r.start.min(span.start)..r.end.max(span.end),
+            None => span,
+        });
+        if sections.iter().any(|(name, _)| *name == finding.check) {
+            continue;
+        }
+        let Some(check) = registry.iter().find(|c| c.name() == finding.check) else {
+            continue;
+        };
+        let mut explanation = Vec::new();
+        app::explain(check.as_ref(), &mut explanation).ok()?;
+        sections.push((
+            finding.check,
+            String::from_utf8_lossy(&explanation).into_owned(),
+        ));
+    }
+    if sections.is_empty() {
+        return None;
+    }
+    let value = sections
+        .into_iter()
+        .map(|(_, text)| format!("```text\n{}\n```", text.trim_end()))
+        .collect::<Vec<_>>()
+        .join("\n\n---\n\n");
+    Some(lsp_types::Hover {
+        contents: lsp_types::HoverContents::Markup(lsp_types::MarkupContent {
+            kind: lsp_types::MarkupKind::Markdown,
+            value,
+        }),
+        range: range.map(|range| lines.range(range)),
+    })
 }
 
 /// The source of `project` with `finding` suppressed by a

@@ -195,6 +195,11 @@ output; it is not meant to be run by hand.
     example, inside a `|` block);
   - **Fix all craft-tidy problems** (kind `source.fixAll`) fixes the whole
     file like `--fix`; editors can run it on save.
+- Hovering over a finding shows the explanation of its check, as
+  `--explain` does.
+- When a `.craft-tidy` file changes, open project files are checked again.
+  Editors that can watch files report changes on disk; others re-check
+  when a `.craft-tidy` is saved in the editor.
 
 `lsp` must come first on the command line; to lint a directory named
 `lsp`, pass it as `./lsp`. As with the command line, the snap can only read

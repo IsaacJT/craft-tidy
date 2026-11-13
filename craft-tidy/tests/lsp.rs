@@ -26,6 +26,11 @@ struct Client {
 
 impl Client {
     fn start() -> Self {
+        Self::start_with(json!({}))
+    }
+
+    /// Starts a server for a client with the given capabilities.
+    fn start_with(capabilities: Value) -> Self {
         let (server, connection) = Connection::memory();
         let server = std::thread::spawn(move || lsp::serve(server));
         let mut client = Client {
@@ -33,8 +38,12 @@ impl Client {
             server: Some(server),
             next_id: 1,
         };
-        let result = client.request("initialize", json!({"capabilities": {}}));
-        assert_eq!(result["capabilities"]["textDocumentSync"], 1);
+        let result = client.request("initialize", json!({"capabilities": capabilities}));
+        assert_eq!(
+            result["capabilities"]["textDocumentSync"],
+            json!({"openClose": true, "change": 1, "save": true})
+        );
+        assert_eq!(result["capabilities"]["hoverProvider"], true);
         assert_eq!(
             result["capabilities"]["codeActionProvider"]["codeActionKinds"],
             json!(["quickfix", "source.fixAll"])
@@ -532,5 +541,134 @@ fn code_actions_need_an_open_checked_document() {
     client.open(&file, "plugs: [b, a\n");
     client.diagnostics();
     assert!(code_actions(&mut client, &file, [0, 0, 0, 0], None).is_empty());
+    client.shutdown();
+}
+
+// Hover
+
+fn hover(client: &mut Client, uri: &str, line: u32, character: u32) -> Value {
+    client.request(
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": {"line": line, "character": character}}),
+    )
+}
+
+#[test]
+fn hovering_over_a_finding_explains_its_check() {
+    let text = "name: test\nplugs: [b, a]\n";
+    let (mut client, file, _dir) = open_project(text);
+    let result = hover(&mut client, &file, 1, 9);
+    assert_eq!(result["contents"]["kind"], "markdown");
+    let value = result["contents"]["value"].as_str().unwrap();
+    assert!(
+        value.starts_with(
+            "```text\nstyle-sorted-lists: Entries of unordered lists must be sorted alphabetically\n"
+        ),
+        "{value}"
+    );
+    assert!(
+        value.contains("\nOptions:\n  keys (string, default: "),
+        "{value}"
+    );
+    assert_eq!(
+        result["range"],
+        json!({"start": {"line": 1, "character": 8}, "end": {"line": 1, "character": 12}})
+    );
+    // Nothing to explain elsewhere.
+    assert_eq!(hover(&mut client, &file, 0, 2), Value::Null);
+    client.shutdown();
+}
+
+#[test]
+fn hover_explains_every_check_with_a_finding_there() {
+    let dir = project(None);
+    let file = uri(&dir.path().join("snap/snapcraft.yaml"));
+    let mut client = Client::start();
+    client.open(&file, "plugs: [b, a]\n");
+    client.diagnostics();
+    let result = hover(&mut client, &file, 0, 9);
+    let value = result["contents"]["value"].as_str().unwrap();
+    let sections: Vec<_> = value.split("\n\n---\n\n").collect();
+    assert_eq!(sections.len(), 2);
+    assert!(sections[0].starts_with("```text\nstyle-collapsed-sequences: "));
+    assert!(sections[1].starts_with("```text\nstyle-sorted-lists: "));
+    // The range covers both findings.
+    assert_eq!(
+        result["range"],
+        json!({"start": {"line": 0, "character": 7}, "end": {"line": 0, "character": 13}})
+    );
+    client.shutdown();
+}
+
+// Configuration changes
+
+#[test]
+fn asks_editors_that_can_to_watch_configuration_files() {
+    let client = Client::start_with(
+        json!({"workspace": {"didChangeWatchedFiles": {"dynamicRegistration": true}}}),
+    );
+    let Message::Request(request) = client.receive() else {
+        panic!("expected a registration request");
+    };
+    assert_eq!(request.method, "client/registerCapability");
+    let registration = &request.params["registrations"][0];
+    assert_eq!(registration["method"], "workspace/didChangeWatchedFiles");
+    assert_eq!(
+        registration["registerOptions"]["watchers"],
+        json!([{"globPattern": "**/.craft-tidy"}])
+    );
+    client
+        .connection
+        .sender
+        .send(Response::new_ok(request.id, Value::Null).into())
+        .unwrap();
+    client.shutdown();
+
+    // Other editors are not asked: the next message answers a request.
+    let mut client = Client::start();
+    let response = client.response("craft-tidy/unknown", Value::Null);
+    assert!(response.response_result.is_err());
+    client.shutdown();
+}
+
+#[test]
+fn rechecks_open_documents_when_the_configuration_changes() {
+    let dir = project(None);
+    let file = uri(&dir.path().join("snap/snapcraft.yaml"));
+    let config = dir.path().join(".craft-tidy");
+    let client = Client::start();
+    client.open(&file, "plugs: [b, a]\n");
+    assert_eq!(client.diagnostics().2.len(), 2);
+
+    // A change reported by file watching.
+    fs::write(&config, "checks: -style-sorted-lists\n").unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({"changes": [{"uri": uri(&config), "type": 2}]}),
+    );
+    let (published, version, diagnostics) = client.diagnostics();
+    assert_eq!((published.as_str(), version), (file.as_str(), Some(1)));
+    assert_eq!(
+        summary(&diagnostics),
+        [("style-collapsed-sequences".to_owned(), 0, 7, 0, 13)]
+    );
+
+    // The configuration file saved in the editor.
+    fs::write(&config, "checks: -style-*\n").unwrap();
+    client.notify(
+        "textDocument/didSave",
+        json!({"textDocument": {"uri": uri(&config)}}),
+    );
+    assert!(client.diagnostics().2.is_empty());
+
+    // Saving other files changes nothing: the next message answers a
+    // request.
+    let mut client = client;
+    client.notify(
+        "textDocument/didSave",
+        json!({"textDocument": {"uri": file}}),
+    );
+    let response = client.response("craft-tidy/unknown", Value::Null);
+    assert!(response.response_result.is_err());
     client.shutdown();
 }

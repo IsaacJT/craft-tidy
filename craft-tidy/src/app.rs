@@ -181,7 +181,8 @@ fn search_start(path: &Path) -> PathBuf {
     }
 }
 
-fn explain(check: &dyn Check, out: &mut dyn Write) -> std::io::Result<()> {
+/// Writes the description of `check` shown by `--explain`.
+pub(crate) fn explain(check: &dyn Check, out: &mut dyn Write) -> std::io::Result<()> {
     writeln!(
         out,
         "{}: {}\n\n{}",
