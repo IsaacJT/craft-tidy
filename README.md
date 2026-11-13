@@ -86,8 +86,14 @@ elsewhere in the file are preserved. Every edit is checked by parsing the
 result again: an edit is only kept if the file is still valid YAML and its
 data changed exactly as intended (for example, a reformatted value must
 still have the same content). Problems that cannot be fixed safely are left
-alone and reported. Only enabled checks fix problems, so `--checks` also
-limits what `--fix` changes.
+alone and reported, where known with the reason they could not be fixed:
+
+```text
+snap/snapcraft.yaml:12:81: warning: line is 95 characters long, exceeding the limit of 80 (cannot be fixed: it has no space at which it can be broken safely, such as in a long URL or word) [style-line-length]
+```
+
+Only enabled checks fix problems, so `--checks` also limits what `--fix`
+changes.
 
 ### Exit status
 
@@ -227,7 +233,11 @@ the data:
 
 Literal (`|`) block scalars such as `override-build` scripts, long words
 such as URLs, mapping keys and anything inside flow mappings cannot be
-wrapped safely and are only reported.
+wrapped safely and are only reported. With `--fix`, each line that is
+still too long says why it could not be wrapped, for example `it has no
+space at which it can be broken safely, such as in a long URL or word` or
+`lines of literal (|) block scalars cannot be wrapped without changing
+them`.
 
 | Option       | Type    | Default | Description                         |
 | ------------ | ------- | ------- | ----------------------------------- |

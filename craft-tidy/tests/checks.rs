@@ -61,6 +61,15 @@ fn diagnostics_start_as_located_or_unlocated_warnings() {
 }
 
 #[test]
+fn diagnostics_can_say_why_they_cannot_be_fixed() {
+    let diagnostic = Diagnostic::warning("parts-a", "message");
+    assert_eq!(diagnostic.unfixable, None);
+    let diagnostic = diagnostic.unfixable("a reason").at(1, 2);
+    assert_eq!(diagnostic.unfixable.as_deref(), Some("a reason"));
+    assert_eq!(diagnostic.location, Some((1, 2)));
+}
+
+#[test]
 fn severities_display_in_lowercase_and_are_ordered() {
     assert_eq!(Severity::Warning.to_string(), "warning");
     assert_eq!(Severity::Error.to_string(), "error");

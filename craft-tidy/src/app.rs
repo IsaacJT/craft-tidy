@@ -117,9 +117,13 @@ fn lint(
             Some((line, column)) => format!("{path}:{line}:{column}"),
             None => path.to_string(),
         };
+        let note = match &diagnostic.unfixable {
+            Some(reason) if settings.fix_enabled() => format!(" (cannot be fixed: {reason})"),
+            _ => String::new(),
+        };
         writeln!(
             out,
-            "{location}: {}: {} [{}]",
+            "{location}: {}: {}{note} [{}]",
             diagnostic.severity, diagnostic.message, diagnostic.check
         )
         .map_err(Error::Output)?;

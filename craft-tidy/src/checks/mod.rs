@@ -42,6 +42,9 @@ pub struct Diagnostic {
     pub message: String,
     /// 1-based line and column in the project file, if known.
     pub location: Option<(usize, usize)>,
+    /// Why `--fix` cannot fix the finding, if the check knows; reported
+    /// for findings that remain after fixing.
+    pub unfixable: Option<String>,
 }
 
 impl Diagnostic {
@@ -53,12 +56,19 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: message.into(),
             location: None,
+            unfixable: None,
         }
     }
 
     /// Sets the 1-based line and column of the finding.
     pub fn at(mut self, line: usize, column: usize) -> Self {
         self.location = Some((line, column));
+        self
+    }
+
+    /// Records why the finding cannot be fixed automatically.
+    pub fn unfixable(mut self, reason: impl Into<String>) -> Self {
+        self.unfixable = Some(reason.into());
         self
     }
 }

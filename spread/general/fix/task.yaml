@@ -48,3 +48,16 @@ execute: |
   test ! -s out.txt
   test ! -s err.txt
   diff -u expected.yaml "$WORK/project/snap/snapcraft.yaml"
+
+  # Lines that cannot be fixed are reported with the reason, with --fix only.
+  cat >> "$WORK/project/snap/snapcraft.yaml" <<'EOF'
+      override-build: |
+        craftctl default && echo "a line of a literal block scalar that is far too long"
+      source: https://example.com/a/very/long/url/that/cannot/be/broken/anywhere.tar.gz
+  EOF
+  craft-tidy --fix "$WORK/project" > out.txt
+  cat out.txt
+  test "$(wc -l < out.txt)" -eq 2
+  MATCH ":17:81: .*\(cannot be fixed: lines of literal \(\|\) block scalars cannot be wrapped without changing them\)" < out.txt
+  MATCH ":18:81: .*\(cannot be fixed: it has no space at which it can be broken safely, such as in a long URL or word\)" < out.txt
+  craft-tidy "$WORK/project" | NOMATCH "cannot be fixed"

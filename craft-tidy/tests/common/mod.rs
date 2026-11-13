@@ -114,6 +114,7 @@ pub struct FakeCheck {
     pub runs: Rc<Cell<usize>>,
     pub fixes: Rc<Cell<usize>>,
     pub crafts: Option<&'static [Craft]>,
+    pub unfixable: Option<&'static str>,
 }
 
 impl FakeCheck {
@@ -126,6 +127,7 @@ impl FakeCheck {
             runs: Rc::default(),
             fixes: Rc::default(),
             crafts: None,
+            unfixable: None,
         }
     }
 
@@ -141,6 +143,12 @@ impl FakeCheck {
 
     pub fn only_for(mut self, crafts: &'static [Craft]) -> Self {
         self.crafts = Some(crafts);
+        self
+    }
+
+    /// Marks the predefined findings as not fixable, for this reason.
+    pub fn unfixable(mut self, reason: &'static str) -> Self {
+        self.unfixable = Some(reason);
         self
     }
 
@@ -185,7 +193,10 @@ impl Check for FakeCheck {
             .findings
             .iter()
             .map(|&(message, location)| {
-                let diagnostic = Diagnostic::warning(self.name, message);
+                let mut diagnostic = Diagnostic::warning(self.name, message);
+                if let Some(reason) = self.unfixable {
+                    diagnostic = diagnostic.unfixable(reason);
+                }
                 match location {
                     Some((line, column)) => diagnostic.at(line, column),
                     None => diagnostic,

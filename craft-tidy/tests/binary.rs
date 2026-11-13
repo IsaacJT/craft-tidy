@@ -459,3 +459,28 @@ fn explain_unknown_check_is_an_error() {
     assert_eq!(output.status.code(), Some(2));
     assert!(stderr(&output).contains("unknown check 'no-such-check'"));
 }
+
+#[test]
+fn fix_reports_why_long_lines_cannot_be_wrapped() {
+    let dir = project(None);
+    let file = dir.path().join("snap/snapcraft.yaml");
+    let url = "https://example.com/a/very/long/url/that/cannot/be/broken/anywhere.tar.gz";
+    fs::write(&file, format!("name: test\nsource: {url}\n")).unwrap();
+    let args = ["--no-config", "--checks=-*,style-line-length"];
+
+    let output = craft_tidy(dir.path(), &args);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!stdout(&output).contains("cannot be fixed"));
+
+    let output = craft_tidy(dir.path(), &[&args[..], &["--fix"]].concat());
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        stdout(&output).contains(
+            "snapcraft.yaml:2:81: warning: line is 81 characters long, exceeding the limit of \
+             80 (cannot be fixed: it has no space at which it can be broken safely, such as in \
+             a long URL or word) [style-line-length]"
+        ),
+        "{}",
+        stdout(&output)
+    );
+}

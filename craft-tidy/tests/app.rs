@@ -345,6 +345,59 @@ fn fix_rewrites_the_project_file_and_reports_what_remains() {
     );
 }
 
+fn unfixable_registry() -> Vec<Box<dyn Check>> {
+    vec![
+        FakeCheck::new("parts-a")
+            .finding("stuck", Some((1, 1)))
+            .unfixable("it is stuck")
+            .boxed(),
+        FakeCheck::new("parts-b")
+            .finding("no reason", Some((2, 1)))
+            .boxed(),
+    ]
+}
+
+#[test]
+fn with_fix_remaining_findings_say_why_they_cannot_be_fixed() {
+    let (dir, file) = fixable_project(None);
+    for args in [vec!["--fix"], vec!["--no-fix", "--fix"]] {
+        let mut args = args.clone();
+        args.insert(0, dir.path().to_str().unwrap());
+        let run = execute(&unfixable_registry(), &args);
+        assert_eq!(
+            run.out,
+            format!(
+                "{0}:1:1: warning: stuck (cannot be fixed: it is stuck) [parts-a]\n\
+                 {0}:2:1: warning: no reason [parts-b]\n",
+                file.display()
+            )
+        );
+        // Nothing could be fixed, so the file is untouched.
+        assert_eq!(run.err, "");
+        assert_eq!(fs::read_to_string(&file).unwrap(), UNFIXED);
+    }
+}
+
+#[test]
+fn without_fix_the_reason_is_not_shown() {
+    let (dir, file) = fixable_project(Some("fix: true\n"));
+    for args in [vec![], vec!["--fix", "--no-fix"]] {
+        let mut args = args.clone();
+        args.insert(0, dir.path().to_str().unwrap());
+        if args.len() == 1 {
+            args.push("--no-config");
+        }
+        let run = execute(&unfixable_registry(), &args);
+        assert_eq!(
+            run.out,
+            format!(
+                "{0}:1:1: warning: stuck [parts-a]\n{0}:2:1: warning: no reason [parts-b]\n",
+                file.display()
+            )
+        );
+    }
+}
+
 #[test]
 fn without_fix_the_project_file_is_untouched() {
     let (dir, file) = fixable_project(None);

@@ -147,7 +147,9 @@ Guidelines:
 4. Report findings with `Diagnostic::warning(...)`, adding a location with
    `.at(line, column)` where possible. Severity is promoted to error by the
    runner according to `warnings-as-errors`; checks should not do this
-   themselves.
+   themselves. If the check has a fix but cannot fix a finding, say why
+   with `.unfixable(reason)`; the reason is shown for findings that remain
+   after `--fix`.
 5. If the problems can be fixed automatically, implement `fix()`. Express
    the fix as `fix::Edit`s of the source text and apply them with
    `fix::apply_edits`, passing a verification closure that compares the

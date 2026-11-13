@@ -456,3 +456,195 @@ fn does_not_wrap_when_continuations_would_be_too_narrow() {
 fn leaves_files_without_long_lines_alone() {
     assert_eq!(fixed("name: test\nsummary: short\n"), None);
 }
+
+// Reasons for lines that cannot be fixed
+
+/// `(line, reason)` of every finding; the reason is `None` for lines that
+/// the fix wraps.
+fn reasons_with(source: &str, max_length: Option<i64>) -> Vec<(usize, Option<String>)> {
+    let registry = checks::registry();
+    let settings = settings(max_length);
+    checks::run(
+        &checks::enabled(&registry, &settings),
+        &project(source),
+        &settings,
+    )
+    .into_iter()
+    .map(|d| (d.location.unwrap().0, d.unfixable))
+    .collect()
+}
+
+/// The reason given for the only long line of `source`.
+fn reason(source: &str) -> String {
+    let reasons = reasons_with(source, Some(40));
+    assert_eq!(reasons.len(), 1, "{reasons:?}");
+    reasons[0]
+        .1
+        .clone()
+        .expect("the line should not be fixable")
+}
+
+const NO_BREAK: &str =
+    "it has no space at which it can be broken safely, such as in a long URL or word";
+
+#[test]
+fn lines_that_can_be_wrapped_have_no_reason() {
+    for source in [
+        "summary: a summary with plenty of spaces to wrap it at\n",
+        "summary: 'a quoted summary with plenty of spaces to wrap'\n",
+        "a:\n  - an item with plenty of spaces to wrap it somewhere\n",
+        "description: >\n  folded text with plenty of spaces to wrap it at\n",
+        "plugs: [network, home, audio-playback, camera, opengl]\n",
+        "# a prose comment with plenty of spaces to wrap it at\na: b\n",
+    ] {
+        let reasons: Vec<_> = reasons_with(source, Some(40))
+            .into_iter()
+            .map(|(_, reason)| reason)
+            .collect();
+        assert_eq!(reasons, [None], "{source:?}");
+        if source.starts_with("description") {
+            continue;
+        }
+        assert!(fixed_with(source, Some(40)).is_some(), "{source:?}");
+    }
+}
+
+#[test]
+fn long_words_cannot_be_broken() {
+    assert_eq!(
+        reason("source: https://example.com/a/very/long/url.tar.gz\n"),
+        NO_BREAK
+    );
+    assert_eq!(
+        reason("a:\n  - https://example.com/a/very/long/url.tar.gz\n"),
+        NO_BREAK
+    );
+    assert_eq!(
+        reason("description: >\n  https://example.com/a/very/long/url.tar.gz\n"),
+        NO_BREAK
+    );
+    assert_eq!(
+        reason("# https://example.com/a/very/long/url.tar.gz\na: b\n"),
+        NO_BREAK
+    );
+    // A space followed by something that looks like YAML syntax is no
+    // safe place to break a plain string either.
+    assert_eq!(
+        reason("summary: aaaaaaaaaaaaaaaaaaaaaaaaaaa :bbbbb\n"),
+        NO_BREAK
+    );
+}
+
+#[test]
+fn a_long_word_left_by_the_fix_is_reported() {
+    let source = "summary: some words then https://example.com/a/very/long/url/x.tar.gz\n";
+    let fixed = fixed_with(source, Some(40)).unwrap();
+    assert_eq!(
+        fixed,
+        "summary: some words then\n  https://example.com/a/very/long/url/x.tar.gz\n"
+    );
+    assert_eq!(
+        reasons_with(&fixed, Some(40)),
+        [(2, Some(NO_BREAK.to_owned()))]
+    );
+}
+
+#[test]
+fn reports_why_other_lines_cannot_be_wrapped() {
+    for (source, expected) in [
+        (
+            "override-build: |\n  echo a literal block line that is too long\n",
+            "lines of literal (|) block scalars cannot be wrapped without changing them",
+        ),
+        (
+            "description: >\n  folded\n    a more-indented folded line that is too long\n",
+            "YAML does not fold more-indented lines of folded (>) block scalars, so they \
+             cannot be wrapped",
+        ),
+        (
+            "a-very-long-mapping-key-that-is-much-too-long: 1\n",
+            "mapping keys cannot be wrapped",
+        ),
+        (
+            "a: {key: a flow mapping value that is too long}\n",
+            "values inside flow mappings ({...}) cannot be wrapped",
+        ),
+        (
+            "a: &anchor an anchored value that is much too long\n",
+            "values with an anchor or tag are not wrapped",
+        ),
+        (
+            "a: !tag a tagged value that is much too long here\n",
+            "values with an anchor or tag are not wrapped",
+        ),
+        (
+            "a:\n  - [network, home, audio-playback, camera, x11]\n",
+            "flow sequences are only rewritten as the value of a mapping entry",
+        ),
+        (
+            "a: [network, home, {audio: playback}, camera, x11]\n",
+            "flow sequences are only rewritten if all their items are strings",
+        ),
+        (
+            "a: b # a trailing comment that is much too long here\n",
+            "comments after other content are not wrapped",
+        ),
+        (
+            "#a comment without a space that is much too long\nb: c\n",
+            "only comments that look like prose (# followed by text) are wrapped",
+        ),
+        (
+            "a story that is told as a whole document, too long\n",
+            "a document that is a single string cannot be wrapped",
+        ),
+        (
+            "a:\n  - &x long value\n  - *x                                        \n",
+            "aliases cannot be wrapped",
+        ),
+    ] {
+        let reasons = reasons_with(source, Some(40));
+        let long: Vec<_> = reasons.iter().filter_map(|(_, r)| r.as_deref()).collect();
+        assert_eq!(long, [expected], "{source:?}: {reasons:?}");
+    }
+}
+
+#[test]
+fn deeply_indented_lines_are_not_wrapped() {
+    // Continuation lines would have less than 20 characters of room.
+    let mut source = String::new();
+    for depth in 0..11 {
+        source.push_str(&format!("{}k{depth}:\n", "  ".repeat(depth)));
+    }
+    source.push_str(&format!("{}value: some words to wrap\n", "  ".repeat(11)));
+    assert_eq!(
+        reasons_with(&source, Some(40)),
+        [(
+            12,
+            Some("it is indented too deeply to wrap within 40 characters".to_owned())
+        )]
+    );
+    assert_eq!(fixed_with(&source, Some(40)), None);
+}
+
+#[test]
+fn strings_spanning_several_lines_are_not_rewrapped() {
+    let source = "summary: a plain string\n  that continues with a line that is too long\n";
+    assert_eq!(
+        reasons_with(source, Some(40)),
+        [(
+            2,
+            Some("strings that span several lines are not re-wrapped".to_owned())
+        )]
+    );
+    assert_eq!(fixed_with(source, Some(40)), None);
+}
+
+#[test]
+fn other_long_lines_get_a_generic_reason() {
+    // Trailing whitespace after a key whose value starts on the next line.
+    let source = format!("a:{}\n  b: c\n", " ".repeat(50));
+    assert_eq!(
+        reasons_with(&source, Some(40)),
+        [(1, Some("it cannot be wrapped automatically".to_owned()))]
+    );
+}

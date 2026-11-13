@@ -47,7 +47,7 @@ check framework and `--fix` exist. Implemented checks:
     (`crafts()`), path-only, no fix
   - `src/checks/line_length.rs` - `style-line-length` (option `max-length`);
     fix wraps plain/quoted scalars, folded-scalar lines, flow sequences and
-    prose comments
+    prose comments; lines it skips get an `unfixable` reason
   - `src/checks/sorted_lists.rs` - `style-sorted-lists` (options `keys`,
     `case-sensitive`). Only lists under `keys` (default: known unordered
     sets; never order-sensitive ones like `command-chain` or `*-parameters`).
@@ -133,6 +133,11 @@ check framework and `--fix` exist. Implemented checks:
   exactly. When unsure whether an edit is safe for Snapcraft's YAML parser
   too, do not propose it.
 - Fixes must be idempotent and must not fight other checks' fixes.
+- Findings a check's fix leaves alone carry the reason via
+  `Diagnostic::unfixable(reason)`; `app` appends `(cannot be fixed:
+  reason)` only when `fix` is enabled. `style-line-length` gets its reasons
+  from the same `Wrapper` pass that builds the fix edits (`Wrapper::skip`),
+  so the reason always matches what the fix did.
 
 ## Testing
 

@@ -2,6 +2,10 @@
 
 //! `style-line-length`: lines must not exceed a maximum length.
 
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::ops::Range;
+
 use crate::checks::{Check, Context, Diagnostic, OptionKind, OptionSpec};
 use crate::config::OptionValue;
 use crate::fix::{Edit, apply_edits};
@@ -13,6 +17,10 @@ const DEFAULT_MAX_LENGTH: usize = 80;
 /// Wrapping is not attempted when continuation lines would have less room
 /// than this, as the result would be harder to read than the long line.
 const MIN_WRAP_WIDTH: usize = 20;
+
+const NO_BREAK: &str = "it has no space at which it can be broken safely, \
+                        such as in a long URL or word";
+const TRAILING_COMMENT: &str = "comments after other content are not wrapped";
 
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "max-length",
@@ -42,7 +50,8 @@ impl Check for LineLength {
          scalars are broken at spaces; flow sequences such as [a, b] become \
          block sequences; and prose comments are re-wrapped. Literal (|) \
          block scalars, such as override-build scripts, and single words \
-         such as long URLs cannot be wrapped and are only reported."
+         such as long URLs cannot be wrapped and are only reported; with \
+         --fix, the report says why the line could not be fixed."
     }
 
     fn options(&self) -> &'static [OptionSpec] {
@@ -59,15 +68,37 @@ impl Check for LineLength {
     fn run(&self, ctx: &Context<'_>) -> Vec<Diagnostic> {
         let max = max_length(ctx);
         let document = &ctx.project.document;
+        let wrapper = Wrapper::new(document, max);
+        let edits = wrapper.edits();
+        let skipped = wrapper.skipped.into_inner();
+        // Lines the fix leaves alone are reported with the reason, which is
+        // shown for the findings that remain after fixing.
         (0..document.line_count())
             .filter_map(|index| {
                 let length = document.line(index).chars().count();
-                (length > max).then(|| {
-                    Diagnostic::warning(
-                        NAME,
-                        format!("line is {length} characters long, exceeding the limit of {max}"),
-                    )
-                    .at(index + 1, max + 1)
+                if length <= max {
+                    return None;
+                }
+                // The fix leaves this line alone (and says why), or its edit
+                // was rejected, as it would have changed the data.
+                let range = document.line_range(index);
+                let edit = edits
+                    .iter()
+                    .find(|edit| edit.range.start <= range.end && range.start <= edit.range.end);
+                let reason = match (skipped.get(&index), edit) {
+                    (Some(reason), _) => Some(reason.clone()),
+                    (None, Some(edit)) => (!wraps_safely(document, edit))
+                        .then(|| "wrapping it would change the data".to_owned()),
+                    (None, None) => Some("it cannot be wrapped automatically".to_owned()),
+                };
+                let diagnostic = Diagnostic::warning(
+                    NAME,
+                    format!("line is {length} characters long, exceeding the limit of {max}"),
+                )
+                .at(index + 1, max + 1);
+                Some(match reason {
+                    Some(reason) => diagnostic.unfixable(reason),
+                    None => diagnostic,
                 })
             })
             .collect()
@@ -75,20 +106,20 @@ impl Check for LineLength {
 
     fn fix(&self, ctx: &Context<'_>) -> Option<Document> {
         let document = &ctx.project.document;
-        let wrapper = Wrapper {
-            document,
-            max: max_length(ctx),
-        };
-        let mut edits = Vec::new();
-        if let Some(root) = document.root() {
-            wrapper.visit(root, Parent::Root, &mut edits);
-        }
-        wrapper.wrap_comments(&mut edits);
+        let edits = Wrapper::new(document, max_length(ctx)).edits();
         let edits = edits.into_iter().map(|edit| (edit, ())).collect();
         apply_edits(document, edits, |before, after, _| {
             before.value() == after.value()
         })
     }
+}
+
+/// Whether `edit` would be accepted by the fix.
+fn wraps_safely(document: &Document, edit: &Edit) -> bool {
+    apply_edits(document, vec![(edit.clone(), ())], |before, after, _| {
+        before.value() == after.value()
+    })
+    .is_some()
 }
 
 fn max_length(ctx: &Context<'_>) -> usize {
@@ -121,9 +152,48 @@ enum Parent {
 struct Wrapper<'a> {
     document: &'a Document,
     max: usize,
+    /// Why long lines were left alone, by 0-based line index.
+    skipped: RefCell<BTreeMap<usize, String>>,
 }
 
-impl Wrapper<'_> {
+impl<'a> Wrapper<'a> {
+    fn new(document: &'a Document, max: usize) -> Self {
+        Self {
+            document,
+            max,
+            skipped: RefCell::default(),
+        }
+    }
+
+    /// The edits that wrap the long lines that can be wrapped.
+    fn edits(&self) -> Vec<Edit> {
+        let mut edits = Vec::new();
+        if let Some(root) = self.document.root() {
+            self.visit(root, Parent::Root, &mut edits);
+        }
+        self.wrap_comments(&mut edits);
+        edits
+    }
+
+    /// Records why the long lines among those covering the byte `range` are
+    /// not wrapped, unless a reason is already known.
+    fn skip(&self, range: Range<usize>, reason: impl Into<String>) {
+        let first = self.document.line_index(range.start);
+        let last = self.document.line_index(range.end.max(range.start + 1) - 1);
+        let reason = reason.into();
+        let mut skipped = self.skipped.borrow_mut();
+        for line in (first..=last).filter(|&line| self.line_is_long(line)) {
+            skipped.entry(line).or_insert_with(|| reason.clone());
+        }
+    }
+
+    fn too_deep(&self) -> String {
+        format!(
+            "it is indented too deeply to wrap within {} characters",
+            self.max
+        )
+    }
+
     fn source(&self) -> &str {
         self.document.source()
     }
@@ -139,7 +209,7 @@ impl Wrapper<'_> {
 
     /// The rest of the line after byte `offset` if it is only whitespace,
     /// optionally followed by a comment, and its byte range.
-    fn tail(&self, offset: usize) -> Option<(&str, std::ops::Range<usize>)> {
+    fn tail(&self, offset: usize) -> Option<(&str, Range<usize>)> {
         let end = self
             .document
             .line_range(self.document.line_index(offset))
@@ -158,7 +228,12 @@ impl Wrapper<'_> {
             NodeKind::Scalar { style, .. } => self.wrap_scalar(node, *style, parent, edits),
             NodeKind::Sequence { style, items } => {
                 if *style == CollectionStyle::Flow {
+                    let count = edits.len();
                     self.wrap_flow_sequence(node, items, parent, edits);
+                    if edits.len() > count {
+                        // The items are rewritten as a whole.
+                        return;
+                    }
                 }
                 let child = match (style, parent) {
                     (CollectionStyle::Block, Parent::Flow) | (CollectionStyle::Flow, _) => {
@@ -186,7 +261,7 @@ impl Wrapper<'_> {
                     self.visit(value, child, edits);
                 }
             }
-            NodeKind::Alias => {}
+            NodeKind::Alias => self.skip(node.span.clone(), "aliases cannot be wrapped"),
         }
     }
 
@@ -199,40 +274,84 @@ impl Wrapper<'_> {
     }
 
     fn wrap_scalar(&self, node: &Node, style: ScalarStyle, parent: Parent, edits: &mut Vec<Edit>) {
+        let span = node.span.clone();
         if node.decorated {
-            return;
+            return self.skip(span, "values with an anchor or tag are not wrapped");
         }
         if style == ScalarStyle::Folded {
             self.wrap_folded(node, edits);
             return;
         }
-        let Some(indent) = Self::continuation_indent(parent) else {
-            return;
+        let indent = match parent {
+            // Only report a key if it is what makes the line long; otherwise
+            // the reason is whatever follows it.
+            // (including the `:` that follows it).
+            Parent::Key if self.column(span.end) + 1 > self.max => {
+                return self.skip(span, "mapping keys cannot be wrapped");
+            }
+            Parent::Flow => {
+                return self.skip(
+                    span,
+                    "values inside flow mappings ({...}) cannot be wrapped",
+                );
+            }
+            Parent::Root => {
+                return self.skip(span, "a document that is a single string cannot be wrapped");
+            }
+            _ => match Self::continuation_indent(parent) {
+                Some(indent) => indent,
+                None => return,
+            },
         };
-        let line = self.document.line_index(node.span.start);
         if !matches!(
             style,
             ScalarStyle::Plain | ScalarStyle::SingleQuoted | ScalarStyle::DoubleQuoted
-        ) || line != self.document.line_index(node.span.end)
-            || !self.line_is_long(line)
-            || self.max < indent + MIN_WRAP_WIDTH
-        {
+        ) {
+            return self.skip(
+                span,
+                "lines of literal (|) block scalars cannot be wrapped without changing them",
+            );
+        }
+        let line = self.document.line_index(span.start);
+        if line != self.document.line_index(span.end) {
+            // Lines of a string that already spans several lines.
+            for line in line..=self.document.line_index(span.end) {
+                let range = self.document.line_range(line);
+                let text = self.document.line(line).trim();
+                let reason = if text.contains(' ') {
+                    "strings that span several lines are not re-wrapped"
+                } else {
+                    NO_BREAK
+                };
+                self.skip(range, reason);
+            }
             return;
+        }
+        if !self.line_is_long(line) {
+            return;
+        }
+        if self.max < indent + MIN_WRAP_WIDTH {
+            return self.skip(span, self.too_deep());
         }
         // A trailing comment stays at the end of the last line; it takes part
         // in filling lines but is never broken.
         let Some((_, tail)) = self.tail(node.span.end) else {
-            return;
+            return self.skip(span, "it is followed by other content on the same line");
         };
 
         let text = &self.source()[node.span.start..tail.end];
         let breaks = break_points(&self.source()[node.span.clone()], style);
         let first_width = self.max.saturating_sub(self.column(node.span.start));
-        if let Some(segments) = fill(text, &breaks, first_width, self.max - indent) {
-            edits.push(Edit::new(
+        match fill(text, &breaks, first_width, self.max - indent) {
+            Some(segments) => edits.push(Edit::new(
                 node.span.start..tail.end,
                 segments.join(&self.newline_and_indent(indent)),
-            ));
+            )),
+            // If the string itself fits, the trailing comment is too long.
+            None if self.column(node.span.end) <= self.max => {
+                self.skip(node.span.clone(), TRAILING_COMMENT);
+            }
+            None => self.skip(node.span.clone(), NO_BREAK),
         }
     }
 
@@ -253,22 +372,31 @@ impl Wrapper<'_> {
             return;
         };
         if self.max < indent + MIN_WRAP_WIDTH {
-            return;
+            return self.skip(node.span.clone(), self.too_deep());
         }
         for line in first..=last {
             let text = self.document.line(line);
             let content = &text[indent.min(text.len())..];
-            if !self.line_is_long(line) || content.starts_with([' ', '\t']) || content.is_empty() {
+            let range = self.document.line_range(line);
+            if !self.line_is_long(line) || content.is_empty() {
+                continue;
+            }
+            if content.starts_with([' ', '\t']) {
+                self.skip(
+                    range,
+                    "YAML does not fold more-indented lines of folded (>) block \
+                     scalars, so they cannot be wrapped",
+                );
                 continue;
             }
             let breaks = break_points(content, ScalarStyle::Folded);
             let width = self.max - indent;
-            if let Some(segments) = fill(content, &breaks, width, width) {
-                let range = self.document.line_range(line);
-                edits.push(Edit::new(
+            match fill(content, &breaks, width, width) {
+                Some(segments) => edits.push(Edit::new(
                     range.start + indent..range.end,
                     segments.join(&self.newline_and_indent(indent)),
-                ));
+                )),
+                None => self.skip(range, NO_BREAK),
             }
         }
     }
@@ -282,8 +410,12 @@ impl Wrapper<'_> {
         parent: Parent,
         edits: &mut Vec<Edit>,
     ) {
+        let span = node.span.clone();
         let Parent::MappingValue { key_column } = parent else {
-            return;
+            return self.skip(
+                span,
+                "flow sequences are only rewritten as the value of a mapping entry",
+            );
         };
         let line = self.document.line_index(node.span.start);
         let simple_items = items.iter().all(|item| {
@@ -298,22 +430,32 @@ impl Wrapper<'_> {
                     }
                 )
         });
-        if node.decorated
-            || items.is_empty()
-            || !simple_items
-            || line != self.document.line_index(node.span.end)
-            || !self.line_is_long(line)
-        {
+        if !self.line_is_long(line) && line == self.document.line_index(span.end) {
             return;
         }
+        if node.decorated {
+            return self.skip(span, "values with an anchor or tag are not wrapped");
+        }
+        if items.is_empty() || !simple_items {
+            return self.skip(
+                span,
+                "flow sequences are only rewritten if all their items are strings",
+            );
+        }
+        if line != self.document.line_index(span.end) {
+            return self.skip(
+                span,
+                "flow sequences spanning several lines are not rewritten",
+            );
+        }
         let Some((tail, tail_range)) = self.tail(node.span.end) else {
-            return;
+            return self.skip(span, "it is followed by other content on the same line");
         };
         // Replace from just after the key's `:` so that the sequence starts on
         // its own line; a trailing comment moves to the key's line.
         let before = &self.source()[..node.span.start];
         let Some(colon) = before.trim_end_matches(' ').strip_suffix(':').map(str::len) else {
-            return;
+            return self.skip(span, "the flow sequence does not follow its key directly");
         };
         let comment = tail.trim();
         let mut replacement = if comment.is_empty() {
@@ -339,16 +481,31 @@ impl Wrapper<'_> {
             let prose = text
                 .strip_prefix("# ")
                 .is_some_and(|body| !body.starts_with([' ', '\t']));
-            if !prose || !prefix.trim().is_empty() || !self.line_is_long(line) {
+            if !self.line_is_long(line) {
+                continue;
+            }
+            if !prefix.trim().is_empty() {
+                self.skip(range.clone(), TRAILING_COMMENT);
+                continue;
+            }
+            if !prose {
+                self.skip(
+                    range.clone(),
+                    "only comments that look like prose (# followed by text) are wrapped",
+                );
                 continue;
             }
             let indent = prefix.chars().count();
             let width = self.max.saturating_sub(indent + 2);
             if width < MIN_WRAP_WIDTH {
+                self.skip(range.clone(), self.too_deep());
                 continue;
             }
             let words: Vec<&str> = text[2..].split_whitespace().collect();
             let lines = fill_words(&words, width);
+            if lines.len() == 1 || lines.iter().any(|line| line.chars().count() > width) {
+                self.skip(range.clone(), NO_BREAK);
+            }
             if lines.len() > 1 {
                 let separator = format!("{}{prefix}# ", self.document.newline());
                 edits.push(Edit::new(

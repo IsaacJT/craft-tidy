@@ -68,6 +68,13 @@ execute: |
   test ! -s err.txt
   diff -u expected.yaml imagecraft.yaml
 
+  # Lines that cannot be wrapped are reported with the reason.
+  echo "source: https://example.com/a/very/long/url/that/cannot/be/broken/anywhere.tar.gz" >> imagecraft.yaml
+  craft-tidy --fix > out.txt 2> err.txt
+  MATCH "imagecraft.yaml:13:81: warning: .*\(cannot be fixed: it has no space at which it can be broken safely, .*\) \[style-line-length\]" < out.txt
+  craft-tidy | NOMATCH "cannot be fixed"
+  cp expected.yaml imagecraft.yaml
+
   # Next to a Snapcraft project, both files are linted, in alphabetical
   # order of the tools.
   mkdir snap
